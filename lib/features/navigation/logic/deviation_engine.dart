@@ -1,4 +1,5 @@
 import 'package:latlong2/latlong.dart';
+import '../../../data/local/db/converters.dart';
 import '../../../core/utils/geo_math.dart';
 import '../../../data/local/db/app_database.dart'; // For Trail entity
 
@@ -34,10 +35,13 @@ class DeviationEngine {
       }
 
       // 2. Detailed Segment Check
-      for (int i = 0; i < trail.geometryJson.length - 1; i++) {
-        final p1 = trail.geometryJson[i];
-        final p2 = trail.geometryJson[i + 1];
-        final dist = GeoMath.distanceToSegment(userLoc, p1, p2);
+      // Cast to handle stale generated code
+      final points = (trail.geometryJson as List).cast<TrailPoint>();
+      for (int i = 0; i < points.length - 1; i++) {
+        final p1 = points[i];
+        final p2 = points[i + 1];
+        final dist =
+            GeoMath.distanceToSegment(userLoc, p1.toLatLng(), p2.toLatLng());
         if (dist < minDistance) {
           minDistance = dist;
         }
@@ -82,11 +86,12 @@ extension TrailBoundsExt on Trail {
     double minLng = 180.0;
     double maxLng = -180.0;
 
-    for (final pt in geometryJson) {
-      if (pt.latitude < minLat) minLat = pt.latitude;
-      if (pt.latitude > maxLat) maxLat = pt.latitude;
-      if (pt.longitude < minLng) minLng = pt.longitude;
-      if (pt.longitude > maxLng) maxLng = pt.longitude;
+    final points = (geometryJson as List).cast<TrailPoint>();
+    for (final pt in points) {
+      if (pt.lat < minLat) minLat = pt.lat;
+      if (pt.lat > maxLat) maxLat = pt.lat;
+      if (pt.lng < minLng) minLng = pt.lng;
+      if (pt.lng > maxLng) maxLng = pt.lng;
     }
     return TrailBounds(minLat, maxLat, minLng, maxLng);
   }

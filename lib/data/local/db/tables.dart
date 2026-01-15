@@ -26,7 +26,16 @@ class Trails extends Table {
   TextColumn get mountainId => text().references(MountainRegions, #id)();
   TextColumn get name => text()();
   TextColumn get geometryJson => text().map(const GeoJsonConverter())();
-  IntColumn get difficulty => integer()(); // 1-5
+
+  // Metadata
+  RealColumn get distance =>
+      real().withDefault(const Constant(0.0))(); // Total length (m)
+  RealColumn get elevationGain =>
+      real().withDefault(const Constant(0.0))(); // Total Gain (m)
+  IntColumn get difficulty => integer().withDefault(const Constant(1))(); // 1-5
+  IntColumn get summitIndex =>
+      integer().withDefault(const Constant(0))(); // Index of Apex
+
   BoolColumn get isOfficial => boolean().withDefault(const Constant(true))();
 
   @override

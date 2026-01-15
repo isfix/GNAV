@@ -5,6 +5,7 @@ import '../../../data/local/db/app_database.dart';
 import 'deviation_engine.dart';
 import 'gps_state_machine.dart';
 import 'map_package_manager.dart';
+import '../../../core/services/track_loader_service.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -13,6 +14,10 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 
 final mapPackageManagerProvider = Provider<MapPackageManager>((ref) {
   return MapPackageManager(ref.watch(databaseProvider));
+});
+
+final trackLoaderProvider = Provider<TrackLoaderService>((ref) {
+  return TrackLoaderService(ref.watch(databaseProvider));
 });
 
 // Current User Location Provider (Streamed)
@@ -38,6 +43,8 @@ final deviationMonitorProvider =
 // Safety Status (Derived)
 final safetyStatusProvider =
     StateProvider<SafetyStatus>((ref) => SafetyStatus.safe);
+
+final isTacticalModeProvider = StateProvider<bool>((ref) => false);
 
 // Map Layer Types
 enum MapLayerType {

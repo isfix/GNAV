@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart';
-import 'package:latlong2/latlong.dart';
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 
@@ -78,12 +77,12 @@ class SeedingService {
         );
 
     final seloRoute = [
-      const LatLng(-7.4526, 110.4422), // Basecamp
-      const LatLng(-7.4530, 110.4430),
-      const LatLng(-7.4540, 110.4445), // Pos 1
-      const LatLng(-7.4550, 110.4455), // Pos 2
-      const LatLng(-7.4560, 110.4460), // Sabana 1
-      const LatLng(-7.4580, 110.4470), // Summit
+      const TrailPoint(-7.4526, 110.4422, 1800), // Basecamp
+      const TrailPoint(-7.4530, 110.4430, 1900),
+      const TrailPoint(-7.4540, 110.4445, 2150), // Pos 1
+      const TrailPoint(-7.4550, 110.4455, 2400), // Pos 2
+      const TrailPoint(-7.4560, 110.4460, 2600), // Sabana 1
+      const TrailPoint(-7.4580, 110.4470, 3145), // Summit
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
@@ -140,11 +139,11 @@ class SeedingService {
 
     // Mock Trail for Rinjani (Simplified)
     final rinjaniRoute = [
-      const LatLng(-8.3600, 116.5200), // Sembalun
-      const LatLng(-8.3700, 116.5100), // Pos 1
-      const LatLng(-8.3800, 116.5000), // Pos 2
-      const LatLng(-8.3900, 116.4800), // Sembalun Crater Rim
-      const LatLng(-8.4116, 116.4572), // Summit
+      const TrailPoint(-8.3600, 116.5200, 1156), // Sembalun
+      const TrailPoint(-8.3700, 116.5100, 1300), // Pos 1
+      const TrailPoint(-8.3800, 116.5000, 1500), // Pos 2
+      const TrailPoint(-8.3900, 116.4800, 2639), // Sembalun Crater Rim
+      const TrailPoint(-8.4116, 116.4572, 3726), // Summit
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
@@ -200,10 +199,10 @@ class SeedingService {
         );
 
     final ranuPaniRoute = [
-      const LatLng(-8.0180, 112.9535),
-      const LatLng(-8.0416, 112.9213), // Ranu Kumbolo
-      const LatLng(-8.0945, 112.9056), // Kalimati
-      const LatLng(-8.1067, 112.9204), // Summit
+      const TrailPoint(-8.0180, 112.9535, 2100),
+      const TrailPoint(-8.0416, 112.9213, 2400), // Ranu Kumbolo
+      const TrailPoint(-8.0945, 112.9056, 2700), // Kalimati
+      const TrailPoint(-8.1067, 112.9204, 3676), // Summit
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
@@ -259,9 +258,9 @@ class SeedingService {
         );
 
     final kersikTuoRoute = [
-      const LatLng(-1.7000, 101.2600),
-      const LatLng(-1.6970, 101.2700),
-      const LatLng(-1.6966, 101.2642),
+      const TrailPoint(-1.7000, 101.2600, 1600),
+      const TrailPoint(-1.6970, 101.2700, 2500),
+      const TrailPoint(-1.6966, 101.2642, 3805),
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
@@ -292,10 +291,10 @@ class SeedingService {
 
     // Trail Data reused (Simplified for brevity in rewrite, but keep interpolation logic if possible/needed)
     final bambanganRoute = [
-      const LatLng(-7.2265, 109.2648),
-      const LatLng(-7.2300, 109.2520),
-      const LatLng(-7.2360, 109.2350), // Pos 5
-      const LatLng(-7.2391, 109.2199), // Summit
+      const TrailPoint(-7.2265, 109.2648, 1500),
+      const TrailPoint(-7.2300, 109.2520, 2000),
+      const TrailPoint(-7.2360, 109.2350, 2500), // Pos 5
+      const TrailPoint(-7.2391, 109.2199, 3428), // Summit
     ];
     await db.into(db.trails).insertOnConflictUpdate(TrailsCompanion(
         id: const Value('slamet_bambangan'),
@@ -321,8 +320,8 @@ class SeedingService {
         );
 
     final garungRoute = [
-      const LatLng(-7.3320, 110.0380),
-      const LatLng(-7.3840, 110.0750), // Summit
+      const TrailPoint(-7.3320, 110.0380, 1400),
+      const TrailPoint(-7.3840, 110.0750, 3371), // Summit
     ];
     await db.into(db.trails).insertOnConflictUpdate(TrailsCompanion(
         id: const Value('sumbing_garung'),
@@ -346,8 +345,8 @@ class SeedingService {
           ),
         );
     final tretesRoute = [
-      const LatLng(-7.6950, 112.6320),
-      const LatLng(-7.7656, 112.5800)
+      const TrailPoint(-7.6950, 112.6320, 800),
+      const TrailPoint(-7.7656, 112.5800, 3339)
     ]; // Summit
     await db.into(db.trails).insertOnConflictUpdate(TrailsCompanion(
         id: const Value('arjuno_tretes'),

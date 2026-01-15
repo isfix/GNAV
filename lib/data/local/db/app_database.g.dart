@@ -508,17 +508,43 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
       'name', aliasedName, false,
       type: DriftSqlType.string, requiredDuringInsert: true);
   @override
-  late final GeneratedColumnWithTypeConverter<List<LatLng>, String>
+  late final GeneratedColumnWithTypeConverter<List<TrailPoint>, String>
       geometryJson = GeneratedColumn<String>(
               'geometry_json', aliasedName, false,
               type: DriftSqlType.string, requiredDuringInsert: true)
-          .withConverter<List<LatLng>>($TrailsTable.$convertergeometryJson);
+          .withConverter<List<TrailPoint>>($TrailsTable.$convertergeometryJson);
+  static const VerificationMeta _distanceMeta =
+      const VerificationMeta('distance');
+  @override
+  late final GeneratedColumn<double> distance = GeneratedColumn<double>(
+      'distance', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _elevationGainMeta =
+      const VerificationMeta('elevationGain');
+  @override
+  late final GeneratedColumn<double> elevationGain = GeneratedColumn<double>(
+      'elevation_gain', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
   static const VerificationMeta _difficultyMeta =
       const VerificationMeta('difficulty');
   @override
   late final GeneratedColumn<int> difficulty = GeneratedColumn<int>(
       'difficulty', aliasedName, false,
-      type: DriftSqlType.int, requiredDuringInsert: true);
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(1));
+  static const VerificationMeta _summitIndexMeta =
+      const VerificationMeta('summitIndex');
+  @override
+  late final GeneratedColumn<int> summitIndex = GeneratedColumn<int>(
+      'summit_index', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   static const VerificationMeta _isOfficialMeta =
       const VerificationMeta('isOfficial');
   @override
@@ -530,8 +556,17 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
           GeneratedColumn.constraintIsAlways('CHECK ("is_official" IN (0, 1))'),
       defaultValue: const Constant(true));
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, mountainId, name, geometryJson, difficulty, isOfficial];
+  List<GeneratedColumn> get $columns => [
+        id,
+        mountainId,
+        name,
+        geometryJson,
+        distance,
+        elevationGain,
+        difficulty,
+        summitIndex,
+        isOfficial
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -561,13 +596,27 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
+    if (data.containsKey('distance')) {
+      context.handle(_distanceMeta,
+          distance.isAcceptableOrUnknown(data['distance']!, _distanceMeta));
+    }
+    if (data.containsKey('elevation_gain')) {
+      context.handle(
+          _elevationGainMeta,
+          elevationGain.isAcceptableOrUnknown(
+              data['elevation_gain']!, _elevationGainMeta));
+    }
     if (data.containsKey('difficulty')) {
       context.handle(
           _difficultyMeta,
           difficulty.isAcceptableOrUnknown(
               data['difficulty']!, _difficultyMeta));
-    } else if (isInserting) {
-      context.missing(_difficultyMeta);
+    }
+    if (data.containsKey('summit_index')) {
+      context.handle(
+          _summitIndexMeta,
+          summitIndex.isAcceptableOrUnknown(
+              data['summit_index']!, _summitIndexMeta));
     }
     if (data.containsKey('is_official')) {
       context.handle(
@@ -593,8 +642,14 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
       geometryJson: $TrailsTable.$convertergeometryJson.fromSql(attachedDatabase
           .typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}geometry_json'])!),
+      distance: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}distance'])!,
+      elevationGain: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}elevation_gain'])!,
       difficulty: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}difficulty'])!,
+      summitIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}summit_index'])!,
       isOfficial: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_official'])!,
     );
@@ -605,7 +660,7 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
     return $TrailsTable(attachedDatabase, alias);
   }
 
-  static TypeConverter<List<LatLng>, String> $convertergeometryJson =
+  static TypeConverter<List<TrailPoint>, String> $convertergeometryJson =
       const GeoJsonConverter();
 }
 
@@ -613,15 +668,21 @@ class Trail extends DataClass implements Insertable<Trail> {
   final String id;
   final String mountainId;
   final String name;
-  final List<LatLng> geometryJson;
+  final List<TrailPoint> geometryJson;
+  final double distance;
+  final double elevationGain;
   final int difficulty;
+  final int summitIndex;
   final bool isOfficial;
   const Trail(
       {required this.id,
       required this.mountainId,
       required this.name,
       required this.geometryJson,
+      required this.distance,
+      required this.elevationGain,
       required this.difficulty,
+      required this.summitIndex,
       required this.isOfficial});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -633,7 +694,10 @@ class Trail extends DataClass implements Insertable<Trail> {
       map['geometry_json'] = Variable<String>(
           $TrailsTable.$convertergeometryJson.toSql(geometryJson));
     }
+    map['distance'] = Variable<double>(distance);
+    map['elevation_gain'] = Variable<double>(elevationGain);
     map['difficulty'] = Variable<int>(difficulty);
+    map['summit_index'] = Variable<int>(summitIndex);
     map['is_official'] = Variable<bool>(isOfficial);
     return map;
   }
@@ -644,7 +708,10 @@ class Trail extends DataClass implements Insertable<Trail> {
       mountainId: Value(mountainId),
       name: Value(name),
       geometryJson: Value(geometryJson),
+      distance: Value(distance),
+      elevationGain: Value(elevationGain),
       difficulty: Value(difficulty),
+      summitIndex: Value(summitIndex),
       isOfficial: Value(isOfficial),
     );
   }
@@ -656,8 +723,11 @@ class Trail extends DataClass implements Insertable<Trail> {
       id: serializer.fromJson<String>(json['id']),
       mountainId: serializer.fromJson<String>(json['mountainId']),
       name: serializer.fromJson<String>(json['name']),
-      geometryJson: serializer.fromJson<List<LatLng>>(json['geometryJson']),
+      geometryJson: serializer.fromJson<List<TrailPoint>>(json['geometryJson']),
+      distance: serializer.fromJson<double>(json['distance']),
+      elevationGain: serializer.fromJson<double>(json['elevationGain']),
       difficulty: serializer.fromJson<int>(json['difficulty']),
+      summitIndex: serializer.fromJson<int>(json['summitIndex']),
       isOfficial: serializer.fromJson<bool>(json['isOfficial']),
     );
   }
@@ -668,8 +738,11 @@ class Trail extends DataClass implements Insertable<Trail> {
       'id': serializer.toJson<String>(id),
       'mountainId': serializer.toJson<String>(mountainId),
       'name': serializer.toJson<String>(name),
-      'geometryJson': serializer.toJson<List<LatLng>>(geometryJson),
+      'geometryJson': serializer.toJson<List<TrailPoint>>(geometryJson),
+      'distance': serializer.toJson<double>(distance),
+      'elevationGain': serializer.toJson<double>(elevationGain),
       'difficulty': serializer.toJson<int>(difficulty),
+      'summitIndex': serializer.toJson<int>(summitIndex),
       'isOfficial': serializer.toJson<bool>(isOfficial),
     };
   }
@@ -678,15 +751,21 @@ class Trail extends DataClass implements Insertable<Trail> {
           {String? id,
           String? mountainId,
           String? name,
-          List<LatLng>? geometryJson,
+          List<TrailPoint>? geometryJson,
+          double? distance,
+          double? elevationGain,
           int? difficulty,
+          int? summitIndex,
           bool? isOfficial}) =>
       Trail(
         id: id ?? this.id,
         mountainId: mountainId ?? this.mountainId,
         name: name ?? this.name,
         geometryJson: geometryJson ?? this.geometryJson,
+        distance: distance ?? this.distance,
+        elevationGain: elevationGain ?? this.elevationGain,
         difficulty: difficulty ?? this.difficulty,
+        summitIndex: summitIndex ?? this.summitIndex,
         isOfficial: isOfficial ?? this.isOfficial,
       );
   Trail copyWithCompanion(TrailsCompanion data) {
@@ -698,8 +777,14 @@ class Trail extends DataClass implements Insertable<Trail> {
       geometryJson: data.geometryJson.present
           ? data.geometryJson.value
           : this.geometryJson,
+      distance: data.distance.present ? data.distance.value : this.distance,
+      elevationGain: data.elevationGain.present
+          ? data.elevationGain.value
+          : this.elevationGain,
       difficulty:
           data.difficulty.present ? data.difficulty.value : this.difficulty,
+      summitIndex:
+          data.summitIndex.present ? data.summitIndex.value : this.summitIndex,
       isOfficial:
           data.isOfficial.present ? data.isOfficial.value : this.isOfficial,
     );
@@ -712,15 +797,18 @@ class Trail extends DataClass implements Insertable<Trail> {
           ..write('mountainId: $mountainId, ')
           ..write('name: $name, ')
           ..write('geometryJson: $geometryJson, ')
+          ..write('distance: $distance, ')
+          ..write('elevationGain: $elevationGain, ')
           ..write('difficulty: $difficulty, ')
+          ..write('summitIndex: $summitIndex, ')
           ..write('isOfficial: $isOfficial')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, mountainId, name, geometryJson, difficulty, isOfficial);
+  int get hashCode => Object.hash(id, mountainId, name, geometryJson, distance,
+      elevationGain, difficulty, summitIndex, isOfficial);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -729,7 +817,10 @@ class Trail extends DataClass implements Insertable<Trail> {
           other.mountainId == this.mountainId &&
           other.name == this.name &&
           other.geometryJson == this.geometryJson &&
+          other.distance == this.distance &&
+          other.elevationGain == this.elevationGain &&
           other.difficulty == this.difficulty &&
+          other.summitIndex == this.summitIndex &&
           other.isOfficial == this.isOfficial);
 }
 
@@ -737,8 +828,11 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
   final Value<String> id;
   final Value<String> mountainId;
   final Value<String> name;
-  final Value<List<LatLng>> geometryJson;
+  final Value<List<TrailPoint>> geometryJson;
+  final Value<double> distance;
+  final Value<double> elevationGain;
   final Value<int> difficulty;
+  final Value<int> summitIndex;
   final Value<bool> isOfficial;
   final Value<int> rowid;
   const TrailsCompanion({
@@ -746,7 +840,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     this.mountainId = const Value.absent(),
     this.name = const Value.absent(),
     this.geometryJson = const Value.absent(),
+    this.distance = const Value.absent(),
+    this.elevationGain = const Value.absent(),
     this.difficulty = const Value.absent(),
+    this.summitIndex = const Value.absent(),
     this.isOfficial = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -754,21 +851,26 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     required String id,
     required String mountainId,
     required String name,
-    required List<LatLng> geometryJson,
-    required int difficulty,
+    required List<TrailPoint> geometryJson,
+    this.distance = const Value.absent(),
+    this.elevationGain = const Value.absent(),
+    this.difficulty = const Value.absent(),
+    this.summitIndex = const Value.absent(),
     this.isOfficial = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         mountainId = Value(mountainId),
         name = Value(name),
-        geometryJson = Value(geometryJson),
-        difficulty = Value(difficulty);
+        geometryJson = Value(geometryJson);
   static Insertable<Trail> custom({
     Expression<String>? id,
     Expression<String>? mountainId,
     Expression<String>? name,
     Expression<String>? geometryJson,
+    Expression<double>? distance,
+    Expression<double>? elevationGain,
     Expression<int>? difficulty,
+    Expression<int>? summitIndex,
     Expression<bool>? isOfficial,
     Expression<int>? rowid,
   }) {
@@ -777,7 +879,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       if (mountainId != null) 'mountain_id': mountainId,
       if (name != null) 'name': name,
       if (geometryJson != null) 'geometry_json': geometryJson,
+      if (distance != null) 'distance': distance,
+      if (elevationGain != null) 'elevation_gain': elevationGain,
       if (difficulty != null) 'difficulty': difficulty,
+      if (summitIndex != null) 'summit_index': summitIndex,
       if (isOfficial != null) 'is_official': isOfficial,
       if (rowid != null) 'rowid': rowid,
     });
@@ -787,8 +892,11 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       {Value<String>? id,
       Value<String>? mountainId,
       Value<String>? name,
-      Value<List<LatLng>>? geometryJson,
+      Value<List<TrailPoint>>? geometryJson,
+      Value<double>? distance,
+      Value<double>? elevationGain,
       Value<int>? difficulty,
+      Value<int>? summitIndex,
       Value<bool>? isOfficial,
       Value<int>? rowid}) {
     return TrailsCompanion(
@@ -796,7 +904,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       mountainId: mountainId ?? this.mountainId,
       name: name ?? this.name,
       geometryJson: geometryJson ?? this.geometryJson,
+      distance: distance ?? this.distance,
+      elevationGain: elevationGain ?? this.elevationGain,
       difficulty: difficulty ?? this.difficulty,
+      summitIndex: summitIndex ?? this.summitIndex,
       isOfficial: isOfficial ?? this.isOfficial,
       rowid: rowid ?? this.rowid,
     );
@@ -818,8 +929,17 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       map['geometry_json'] = Variable<String>(
           $TrailsTable.$convertergeometryJson.toSql(geometryJson.value));
     }
+    if (distance.present) {
+      map['distance'] = Variable<double>(distance.value);
+    }
+    if (elevationGain.present) {
+      map['elevation_gain'] = Variable<double>(elevationGain.value);
+    }
     if (difficulty.present) {
       map['difficulty'] = Variable<int>(difficulty.value);
+    }
+    if (summitIndex.present) {
+      map['summit_index'] = Variable<int>(summitIndex.value);
     }
     if (isOfficial.present) {
       map['is_official'] = Variable<bool>(isOfficial.value);
@@ -837,7 +957,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
           ..write('mountainId: $mountainId, ')
           ..write('name: $name, ')
           ..write('geometryJson: $geometryJson, ')
+          ..write('distance: $distance, ')
+          ..write('elevationGain: $elevationGain, ')
           ..write('difficulty: $difficulty, ')
+          ..write('summitIndex: $summitIndex, ')
           ..write('isOfficial: $isOfficial, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2502,8 +2625,11 @@ typedef $$TrailsTableCreateCompanionBuilder = TrailsCompanion Function({
   required String id,
   required String mountainId,
   required String name,
-  required List<LatLng> geometryJson,
-  required int difficulty,
+  required List<TrailPoint> geometryJson,
+  Value<double> distance,
+  Value<double> elevationGain,
+  Value<int> difficulty,
+  Value<int> summitIndex,
   Value<bool> isOfficial,
   Value<int> rowid,
 });
@@ -2511,8 +2637,11 @@ typedef $$TrailsTableUpdateCompanionBuilder = TrailsCompanion Function({
   Value<String> id,
   Value<String> mountainId,
   Value<String> name,
-  Value<List<LatLng>> geometryJson,
+  Value<List<TrailPoint>> geometryJson,
+  Value<double> distance,
+  Value<double> elevationGain,
   Value<int> difficulty,
+  Value<int> summitIndex,
   Value<bool> isOfficial,
   Value<int> rowid,
 });
@@ -2553,13 +2682,22 @@ class $$TrailsTableFilterComposer
   ColumnFilters<String> get name => $composableBuilder(
       column: $table.name, builder: (column) => ColumnFilters(column));
 
-  ColumnWithTypeConverterFilters<List<LatLng>, List<LatLng>, String>
+  ColumnWithTypeConverterFilters<List<TrailPoint>, List<TrailPoint>, String>
       get geometryJson => $composableBuilder(
           column: $table.geometryJson,
           builder: (column) => ColumnWithTypeConverterFilters(column));
 
+  ColumnFilters<double> get distance => $composableBuilder(
+      column: $table.distance, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get elevationGain => $composableBuilder(
+      column: $table.elevationGain, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<int> get difficulty => $composableBuilder(
       column: $table.difficulty, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get summitIndex => $composableBuilder(
+      column: $table.summitIndex, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => ColumnFilters(column));
@@ -2604,8 +2742,18 @@ class $$TrailsTableOrderingComposer
       column: $table.geometryJson,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get distance => $composableBuilder(
+      column: $table.distance, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get elevationGain => $composableBuilder(
+      column: $table.elevationGain,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get difficulty => $composableBuilder(
       column: $table.difficulty, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get summitIndex => $composableBuilder(
+      column: $table.summitIndex, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => ColumnOrderings(column));
@@ -2646,12 +2794,21 @@ class $$TrailsTableAnnotationComposer
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
-  GeneratedColumnWithTypeConverter<List<LatLng>, String> get geometryJson =>
+  GeneratedColumnWithTypeConverter<List<TrailPoint>, String> get geometryJson =>
       $composableBuilder(
           column: $table.geometryJson, builder: (column) => column);
 
+  GeneratedColumn<double> get distance =>
+      $composableBuilder(column: $table.distance, builder: (column) => column);
+
+  GeneratedColumn<double> get elevationGain => $composableBuilder(
+      column: $table.elevationGain, builder: (column) => column);
+
   GeneratedColumn<int> get difficulty => $composableBuilder(
       column: $table.difficulty, builder: (column) => column);
+
+  GeneratedColumn<int> get summitIndex => $composableBuilder(
+      column: $table.summitIndex, builder: (column) => column);
 
   GeneratedColumn<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => column);
@@ -2703,8 +2860,11 @@ class $$TrailsTableTableManager extends RootTableManager<
             Value<String> id = const Value.absent(),
             Value<String> mountainId = const Value.absent(),
             Value<String> name = const Value.absent(),
-            Value<List<LatLng>> geometryJson = const Value.absent(),
+            Value<List<TrailPoint>> geometryJson = const Value.absent(),
+            Value<double> distance = const Value.absent(),
+            Value<double> elevationGain = const Value.absent(),
             Value<int> difficulty = const Value.absent(),
+            Value<int> summitIndex = const Value.absent(),
             Value<bool> isOfficial = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2713,7 +2873,10 @@ class $$TrailsTableTableManager extends RootTableManager<
             mountainId: mountainId,
             name: name,
             geometryJson: geometryJson,
+            distance: distance,
+            elevationGain: elevationGain,
             difficulty: difficulty,
+            summitIndex: summitIndex,
             isOfficial: isOfficial,
             rowid: rowid,
           ),
@@ -2721,8 +2884,11 @@ class $$TrailsTableTableManager extends RootTableManager<
             required String id,
             required String mountainId,
             required String name,
-            required List<LatLng> geometryJson,
-            required int difficulty,
+            required List<TrailPoint> geometryJson,
+            Value<double> distance = const Value.absent(),
+            Value<double> elevationGain = const Value.absent(),
+            Value<int> difficulty = const Value.absent(),
+            Value<int> summitIndex = const Value.absent(),
             Value<bool> isOfficial = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2731,7 +2897,10 @@ class $$TrailsTableTableManager extends RootTableManager<
             mountainId: mountainId,
             name: name,
             geometryJson: geometryJson,
+            distance: distance,
+            elevationGain: elevationGain,
             difficulty: difficulty,
+            summitIndex: summitIndex,
             isOfficial: isOfficial,
             rowid: rowid,
           ),

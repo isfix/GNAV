@@ -63,6 +63,21 @@ void onStart(ServiceInstance service) async {
   // 2. Initialize Database (New connection in this isolate)
   final db = AppDatabase();
 
+  // Batch Buffer
+  final List<UserBreadcrumbsCompanion> buffer = [];
+  Timer? flushTimer;
+
+  Future<void> flushBuffer() async {
+    if (buffer.isEmpty) return;
+    final batchData = List<UserBreadcrumbsCompanion>.from(buffer);
+    buffer.clear();
+
+    await db.batch((batch) {
+      batch.insertAll(db.userBreadcrumbs, batchData);
+    });
+    print("[BG] Flushed ${batchData.length} points to DB");
+  }
+
   // 3. Configure Geolocator Stream Management
   StreamSubscription<Position>? positionStream;
 
@@ -72,17 +87,28 @@ void onStart(ServiceInstance service) async {
         .listen((Position? position) async {
       if (position != null) {
         // A. SAVE TO DB
-        await db.trackingDao.insertBreadcrumb(
-          UserBreadcrumbsCompanion(
-            sessionId: const drift.Value('current_session'),
-            lat: drift.Value(position.latitude),
-            lng: drift.Value(position.longitude),
-            altitude: drift.Value(position.altitude),
-            accuracy: drift.Value(position.accuracy),
-            speed: drift.Value(position.speed),
-            timestamp: drift.Value(DateTime.now()),
-          ),
-        );
+        // A. BUFFER TO DB
+        buffer.add(UserBreadcrumbsCompanion(
+          sessionId: const drift.Value('current_session'),
+          lat: drift.Value(position.latitude),
+          lng: drift.Value(position.longitude),
+          altitude: drift.Value(position.altitude),
+          accuracy: drift.Value(position.accuracy),
+          speed: drift.Value(position.speed),
+          timestamp: drift.Value(DateTime.now()),
+        ));
+
+        // Flush if buffer full
+        if (buffer.length >= 50) {
+          flushTimer?.cancel();
+          await flushBuffer();
+        }
+
+        // Or ensure we flush periodically (e.g. every 2 mins)
+        flushTimer ??= Timer(const Duration(minutes: 2), () async {
+          await flushBuffer();
+          flushTimer = null;
+        });
 
         // B. UPDATE NOTIFICATION
         if (service is AndroidServiceInstance) {
@@ -126,10 +152,10 @@ void onStart(ServiceInstance service) async {
     final mode = event["mode"] as String?;
 
     if (mode == "eco") {
-      // LOW POWER: Medium accuracy, 50m filter
+      // LOW POWER: High accuracy (safe), but infrequent updates
       startStream(AndroidSettings(
-        accuracy: LocationAccuracy.medium,
-        distanceFilter: 50,
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
         intervalDuration: const Duration(seconds: 30),
       ));
     } else if (mode == "emergency") {

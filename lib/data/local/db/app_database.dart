@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 
 import 'tables.dart';
 import '../daos/daos.dart';
-import 'package:latlong2/latlong.dart';
 import 'converters.dart';
 
 part 'app_database.g.dart';
@@ -26,7 +25,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration {
@@ -50,6 +49,20 @@ class AppDatabase extends _$AppDatabase {
         if (from < 5) {
           // Version 5: Added OfflineMapPackages
           await m.createTable(offlineMapPackages);
+        }
+        if (from < 6) {
+          // Version 6: Added Trail Metadata & Apex Index
+          await m.addColumn(trails, trails.distance);
+          await m.addColumn(trails, trails.elevationGain);
+          // difficulty already existed but was not defaulted in previous versions,
+          // essentially we are altering the valid columns.
+          // Drift's addColumn is safe for new columns.
+          // Note: difficulty was ALREADY in v1-5 but defined as integer().
+          // In tables.dart I added default(1). This is metadata change only unless I add column.
+          // Wait, previous code had `IntColumn get difficulty => integer()();`
+          // So column EXISTS.
+
+          await m.addColumn(trails, trails.summitIndex);
         }
       },
     );

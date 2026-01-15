@@ -43,6 +43,10 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  Future<void> insertTrail(TrailsCompanion trail) {
+    return into(trails).insertOnConflictUpdate(trail);
+  }
+
   // NOTE: Spatial query for nearest water source usually requires custom SQL or Iterate
   // Since we don't have Spatialite extension in standard build easily on all platforms,
   // we might filter by lat/lng bounding box in Dart or simple Euclidean approx if small dataset.

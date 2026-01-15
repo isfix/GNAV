@@ -42,6 +42,10 @@ dependencies:
   dio: ^5.9.0
   fl_chart: ^1.1.1
   mbtiles: ^0.4.2
+  audioplayers: ^6.5.1
+  sunrise_sunset_calc: ^3.0.0
+  vibration: ^3.1.5
+  gpx: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -57,3 +61,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/tracks/
