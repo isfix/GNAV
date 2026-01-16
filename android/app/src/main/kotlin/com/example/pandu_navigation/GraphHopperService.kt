@@ -51,10 +51,10 @@ class GraphHopperService(private val context: Context) {
             }
             
             hopper = GraphHopper().apply {
-                // Configure for hiking/pedestrian profile
+                // Configure for foot/pedestrian profile (must match the processed graph)
                 setProfiles(
-                    Profile("hike")
-                        .setVehicle("hike")
+                    Profile("foot")
+                        .setVehicle("foot")
                         .setWeighting("fastest")
                         .setTurnCosts(false)
                 )
@@ -96,7 +96,7 @@ class GraphHopperService(private val context: Context) {
         
         try {
             val request = GHRequest(startLat, startLon, endLat, endLon)
-                .setProfile("hike")
+                .setProfile("foot")
                 .setAlgorithm(Parameters.Algorithms.ASTAR_BI)
                 .putHint(Parameters.Routing.INSTRUCTIONS, true)
             
