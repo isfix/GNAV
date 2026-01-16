@@ -92,6 +92,9 @@ void onStart(ServiceInstance service) async {
   // Safety Logic (runs in background, independent of UI)
   String _currentSafetyStatus = 'safe';
 
+  // Hysteresis monitor to prevent flickering alerts from GPS noise
+  final _deviationMonitor = DeviationMonitor();
+
   // Phase 4: Kalman Filter for GPS smoothing
   final _kalmanFilter =
       KalmanFilter.forest(); // Tuned for mountain/forest GPS noise
@@ -140,7 +143,11 @@ void onStart(ServiceInstance service) async {
             final latLng = LatLng(lat, lng);
             final minDistance =
                 DeviationEngine.calculateMinDistance(latLng, nearbyTrails);
-            final status = DeviationEngine.determineStatus(minDistance);
+
+            // Use DeviationMonitor with hysteresis buffer to prevent flickering
+            // This debounces false alarms from single GPS glitches
+            _deviationMonitor.addReading(minDistance);
+            final status = _deviationMonitor.currentStatus;
 
             final statusName = status.name;
             if (statusName != _currentSafetyStatus) {
@@ -230,5 +237,28 @@ void onStart(ServiceInstance service) async {
         distanceFilter: 10,
       ));
     }
+  });
+
+  // 5. Handle Service Stop (Clean Resource Disposal)
+  // This prevents memory leaks and "Database locked" errors on rapid restarts
+  service.on('stopService').listen((event) async {
+    debugPrint('[BG] Service stopping - cleaning up resources');
+
+    // Cancel GPS stream
+    positionStream?.cancel();
+    positionStream = null;
+
+    // Flush any remaining breadcrumbs
+    await flushBuffer();
+
+    // Cancel flush timer
+    flushTimer?.cancel();
+    flushTimer = null;
+
+    // Close database connection
+    await db.close();
+
+    debugPrint('[BG] Resources cleaned up, stopping service');
+    await service.stopSelf();
   });
 }

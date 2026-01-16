@@ -74,6 +74,73 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
               t.mountainId.equals(mountainId) & t.type.equals(1))) // 1 = Water
         .get();
   }
+
+  /// Gets all basecamps for a mountain
+  Future<List<PointOfInterest>> getBasecampsForMountain(String mountainId) {
+    return (select(pointsOfInterest)
+          ..where((t) =>
+              t.mountainId.equals(mountainId) &
+              t.type.equals(0))) // 0 = Basecamp
+        .get();
+  }
+
+  /// Gets all basecamps across all mountains
+  Future<List<PointOfInterest>> getAllBasecamps() {
+    return (select(pointsOfInterest)
+          ..where((t) => t.type.equals(0))) // 0 = Basecamp
+        .get();
+  }
+
+  /// Gets a specific POI by ID
+  Future<PointOfInterest?> getPoiById(String id) {
+    return (select(pointsOfInterest)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// Smart Trail Finder: Finds the trail that starts near a basecamp
+  ///
+  /// Logic:
+  /// 1. Get all trails for the basecamp's mountain
+  /// 2. Find trail whose first point is within 500m of basecamp
+  /// 3. Return the nearest match
+  Future<Trail?> getTrailForBasecamp(PointOfInterest basecamp) async {
+    // Get all trails for this mountain
+    final mountainTrails = await getTrailsForMountain(basecamp.mountainId);
+    if (mountainTrails.isEmpty) return null;
+
+    Trail? nearestTrail;
+    double minDistance = double.infinity;
+
+    for (final trail in mountainTrails) {
+      final geometry = trail.geometryJson;
+      if (geometry == null || (geometry as List).isEmpty) continue;
+
+      // Get first point of trail
+      final points = geometry.cast<dynamic>();
+      if (points.isEmpty) continue;
+
+      final firstPoint = points.first;
+      final trailStartLat = (firstPoint.lat as num).toDouble();
+      final trailStartLng = (firstPoint.lng as num).toDouble();
+
+      // Calculate approximate distance (Haversine simplified)
+      final dLat = (trailStartLat - basecamp.lat) * 111320; // meters per degree
+      final dLng = (trailStartLng - basecamp.lng) *
+          111320 *
+          0.85; // approx at -7° latitude
+      final distance = (dLat * dLat + dLng * dLng);
+
+      // 500m threshold (in squared meters to avoid sqrt)
+      const maxDistance = 500.0 * 500.0;
+
+      if (distance < maxDistance && distance < minDistance) {
+        minDistance = distance;
+        nearestTrail = trail;
+      }
+    }
+
+    return nearestTrail;
+  }
 }
 
 @DriftAccessor(tables: [UserBreadcrumbs])

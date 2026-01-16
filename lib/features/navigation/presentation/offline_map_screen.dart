@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
+import 'dart:math' show Point;
 import 'package:drift/drift.dart' as drift;
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
@@ -31,6 +32,8 @@ import 'widgets/controls/map_style_selector.dart';
 import 'widgets/sheets/navigation_sheet.dart';
 import 'widgets/sheets/search_overlay.dart';
 import 'widgets/sheets/region_preview_sheet.dart';
+import 'widgets/sheets/mountain_detail_sheet.dart';
+import 'widgets/sheets/basecamp_preview_sheet.dart';
 
 // -----------------------------------------------------------------------------
 // MAIN SCREEN
@@ -458,6 +461,164 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     // Add region markers
     final regions = await ref.read(allMountainsProvider.future);
     mapLayerService.addRegionMarkers(regions);
+
+    // Draw clickable mountain markers
+    mapLayerService.drawMountainMarkers(regions);
+
+    // Draw clickable basecamp markers
+    final db = ref.read(databaseProvider);
+    final basecamps = await db.navigationDao.getAllBasecamps();
+    mapLayerService.drawBasecampMarkers(basecamps);
+  }
+
+  /// Handles map taps to detect feature clicks on markers
+  Future<void> _handleMapTap(LatLng latLng) async {
+    if (_mapController == null) return;
+
+    try {
+      // Query features at tap point (radius in pixels)
+      final screenPoint = await _mapController!.toScreenLocation(latLng);
+      final features = await _mapController!.queryRenderedFeatures(
+        Point(screenPoint.x.toDouble(), screenPoint.y.toDouble()),
+        [
+          MapLayerService.mountainMarkerLayerId,
+          MapLayerService.basecampMarkerLayerId,
+        ],
+        null,
+      );
+
+      if (features.isEmpty) return;
+
+      final feature = features.first;
+      final properties = feature['properties'] as Map?;
+      final featureType = properties?['type'] as String?;
+
+      if (featureType == 'mountain') {
+        final mountainId = properties?['id'] as String?;
+        if (mountainId != null) {
+          _showMountainDetailSheet(mountainId);
+        }
+      } else if (featureType == 'basecamp') {
+        final basecampId = properties?['id'] as String?;
+        if (basecampId != null) {
+          _showBasecampPreviewSheet(basecampId);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error handling map tap: $e');
+    }
+  }
+
+  /// Shows mountain detail sheet
+  Future<void> _showMountainDetailSheet(String mountainId) async {
+    final db = ref.read(databaseProvider);
+
+    // Get mountain
+    final mountains = await db.mountainDao.getAllRegions();
+    final mountain = mountains.firstWhere(
+      (m) => m.id == mountainId,
+      orElse: () => mountains.first,
+    );
+
+    // Get basecamps for this mountain
+    final basecamps =
+        await db.navigationDao.getBasecampsForMountain(mountainId);
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => MountainDetailSheet(
+        mountain: mountain,
+        basecamps: basecamps,
+        onBasecampTap: (basecamp) {
+          Navigator.pop(ctx);
+          // Zoom to basecamp
+          _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              LatLng(basecamp.lat, basecamp.lng),
+              15,
+            ),
+          );
+          // Show basecamp preview after short delay
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _showBasecampPreviewSheet(basecamp.id);
+          });
+        },
+      ),
+    );
+  }
+
+  /// Shows basecamp preview sheet with Start Hike button
+  Future<void> _showBasecampPreviewSheet(String basecampId) async {
+    final db = ref.read(databaseProvider);
+
+    // Get basecamp
+    final basecamp = await db.navigationDao.getPoiById(basecampId);
+    if (basecamp == null || !mounted) return;
+
+    // Find associated trail (Smart Trail Finder)
+    final trail = await db.navigationDao.getTrailForBasecamp(basecamp);
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => BasecampPreviewSheet(
+        basecamp: basecamp,
+        associatedTrail: trail,
+        onStartHike: trail != null
+            ? () async {
+                Navigator.pop(ctx);
+
+                // Set active mountain
+                ref.read(activeMountainIdProvider.notifier).state =
+                    basecamp.mountainId;
+
+                // Draw the trail
+                mapLayerService.drawTrails([trail]);
+
+                // Zoom to trail
+                if (trail.geometryJson != null &&
+                    (trail.geometryJson as List).isNotEmpty) {
+                  final points = (trail.geometryJson as List);
+                  final midpoint = points[points.length ~/ 2];
+                  _mapController?.animateCamera(
+                    CameraUpdate.newLatLngZoom(
+                      LatLng(midpoint.lat, midpoint.lng),
+                      14,
+                    ),
+                  );
+                }
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Trail loaded: ${trail.name}'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              }
+            : () {
+                Navigator.pop(ctx);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No mapped trail found for this basecamp'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              },
+        errorMessage:
+            trail == null ? 'No mapped trail found for this basecamp' : null,
+      ),
+    );
   }
 
   @override
@@ -518,6 +679,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                 // Draw layers once style is loaded
                 _drawMapLayers();
               },
+              onMapClick: (point, latLng) => _handleMapTap(latLng),
             ),
 
             // 2. SEARCH BAR OR OVERLAY

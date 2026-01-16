@@ -27,14 +27,20 @@ class DeviationEngine {
     for (final trail in trails) {
       if (trail.geometryJson.isEmpty) continue;
 
-      // 1. AABB Check (Optimization)
-      // We calculate bounds on the fly. In production, this should be cached in the specific Trail object extension.
-      final bounds = trail.bounds;
+      // 1. O(1) AABB Check using pre-calculated DB columns
+      // Uses minLat/maxLat/minLng/maxLng stored in the Trail entity
+      // This avoids expensive JSON parsing for trails the user is nowhere near
+      final bounds = TrailBounds(
+        trail.minLat, // From DB column
+        trail.maxLat, // From DB column
+        trail.minLng, // From DB column
+        trail.maxLng, // From DB column
+      );
       if (!bounds.contains(userLoc, padding: _boundsPadding)) {
-        continue; // Skip this trail, it's too far away.
+        continue; // Skip this trail - user is outside bounding box
       }
 
-      // 2. Detailed Segment Check
+      // 2. Detailed Segment Check (only runs for nearby trails)
       // Cast to handle stale generated code
       final points = (trail.geometryJson as List).cast<TrailPoint>();
       for (int i = 0; i < points.length - 1; i++) {

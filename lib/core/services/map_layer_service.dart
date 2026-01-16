@@ -235,6 +235,147 @@ class MapLayerService {
       debugPrint('Error adding region markers: $e');
     }
   }
+
+  // ===========================================================================
+  // CLICKABLE MARKER LAYERS (GeoJSON-based for feature click detection)
+  // ===========================================================================
+
+  static const String mountainMarkerSourceId = 'source_mountain_markers';
+  static const String mountainMarkerLayerId = 'layer_mountain_markers';
+  static const String basecampMarkerSourceId = 'source_basecamp_markers';
+  static const String basecampMarkerLayerId = 'layer_basecamp_markers';
+
+  bool _mountainMarkersAdded = false;
+  bool _basecampMarkersAdded = false;
+
+  /// Draws mountain markers as clickable GeoJSON layer
+  Future<void> drawMountainMarkers(List<MountainRegion> mountains) async {
+    if (_controller == null || mountains.isEmpty) return;
+
+    try {
+      final features = <Map<String, dynamic>>[];
+
+      for (final mountain in mountains) {
+        if (mountain.lat == 0 || mountain.lng == 0) continue;
+
+        features.add({
+          'type': 'Feature',
+          'id': mountain.id, // CRITICAL: ID for click detection
+          'properties': {
+            'id': mountain.id,
+            'name': mountain.name,
+            'type': 'mountain',
+          },
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [mountain.lng, mountain.lat],
+          },
+        });
+      }
+
+      final geojson = {'type': 'FeatureCollection', 'features': features};
+
+      if (!_mountainMarkersAdded) {
+        await _controller!.addGeoJsonSource(mountainMarkerSourceId, geojson);
+        await _controller!.addSymbolLayer(
+          mountainMarkerSourceId,
+          mountainMarkerLayerId,
+          const SymbolLayerProperties(
+            iconImage: 'mountain-15', // MapLibre Maki icon
+            iconSize: 1.8,
+            iconAllowOverlap: true,
+            textField: ['get', 'name'],
+            textOffset: [0, 1.5],
+            textSize: 12,
+            textColor: '#ffffff',
+            textHaloColor: '#333333',
+            textHaloWidth: 1.5,
+            textAllowOverlap: false,
+          ),
+        );
+        _mountainMarkersAdded = true;
+      } else {
+        await _controller!.setGeoJsonSource(mountainMarkerSourceId, geojson);
+      }
+    } catch (e) {
+      debugPrint('Error drawing mountain markers: $e');
+    }
+  }
+
+  /// Draws basecamp markers as clickable GeoJSON layer
+  Future<void> drawBasecampMarkers(List<PointOfInterest> basecamps) async {
+    if (_controller == null || basecamps.isEmpty) return;
+
+    try {
+      final features = <Map<String, dynamic>>[];
+
+      for (final basecamp in basecamps) {
+        features.add({
+          'type': 'Feature',
+          'id': basecamp.id, // CRITICAL: ID for click detection
+          'properties': {
+            'id': basecamp.id,
+            'name': basecamp.name,
+            'mountainId': basecamp.mountainId,
+            'type': 'basecamp',
+            'lat': basecamp.lat,
+            'lng': basecamp.lng,
+          },
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [basecamp.lng, basecamp.lat],
+          },
+        });
+      }
+
+      final geojson = {'type': 'FeatureCollection', 'features': features};
+
+      if (!_basecampMarkersAdded) {
+        await _controller!.addGeoJsonSource(basecampMarkerSourceId, geojson);
+        await _controller!.addSymbolLayer(
+          basecampMarkerSourceId,
+          basecampMarkerLayerId,
+          const SymbolLayerProperties(
+            iconImage: 'campsite-15', // MapLibre Maki tent icon
+            iconSize: 1.5,
+            iconAllowOverlap: true,
+            textField: ['get', 'name'],
+            textOffset: [0, 1.2],
+            textSize: 11,
+            textColor: '#ffc107',
+            textHaloColor: '#333333',
+            textHaloWidth: 1,
+            textAllowOverlap: false,
+          ),
+        );
+        _basecampMarkersAdded = true;
+      } else {
+        await _controller!.setGeoJsonSource(basecampMarkerSourceId, geojson);
+      }
+    } catch (e) {
+      debugPrint('Error drawing basecamp markers: $e');
+    }
+  }
+
+  /// Clears all clickable marker layers
+  Future<void> clearClickableMarkers() async {
+    if (_controller == null) return;
+
+    try {
+      if (_mountainMarkersAdded) {
+        await _controller!.removeLayer(mountainMarkerLayerId);
+        await _controller!.removeSource(mountainMarkerSourceId);
+        _mountainMarkersAdded = false;
+      }
+      if (_basecampMarkersAdded) {
+        await _controller!.removeLayer(basecampMarkerLayerId);
+        await _controller!.removeSource(basecampMarkerSourceId);
+        _basecampMarkersAdded = false;
+      }
+    } catch (e) {
+      debugPrint('Error clearing markers: $e');
+    }
+  }
 }
 
 /// Singleton provider

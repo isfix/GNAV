@@ -1,175 +1,81 @@
+CONTEXT: We are upgrading the "PANDU" map experience. Currently, the map shows trails, but users cannot click on "Mountain" or "Basecamp" icons to get info. I need you to implement clickable markers and the logic to auto-select trails.
 
+YOUR OBJECTIVE:
 
-### **Agent Context**
+Render Mountains and Basecamps as clickable icons on the MapLibre map.
 
-> **Role:** Senior Flutter/Native Architect
-> **Objective:** Refactor "PANDU Navigation" to fix critical architectural flaws (UI-coupled logic, O(N) loops, OOM risks) and implement corporate-grade signal processing.
-> **Constraint:** Maintain offline-first capability. Use existing libraries (Drift, Riverpod, MapLibre) but change *how* they are used.
+Implement the interaction flow:
 
----
+Tap Mountain: Show MountainDetailSheet (Stats, Info, List of Basecamps).
 
-### **Phase 1: Decouple Safety Logic from UI (Critical)**
+Tap Basecamp: Show BasecampPreviewSheet with a "Start Hike" button.
 
-**Goal:** Ensure safety checks and haptics run even when the screen is off or the app is minimized.
+Implement "Auto-Trail Selection": When "Start Hike" is tapped, find the trail starting at that basecamp and draw it.
 
-**Files to Modify:**
+TASK 1: Update MapLayerService (Visualization)
 
-1. `lib/core/services/background_service.dart`
-2. `lib/features/navigation/logic/deviation_engine.dart`
-3. `lib/features/navigation/presentation/offline_map_screen.dart` (Cleanup)
+File: lib/core/services/map_layer_service.dart
 
-**Instructions for Agent:**
+Instructions:
 
-1. **Refactor `DeviationEngine`:**
-* Make `DeviationEngine` a pure Dart class (no Flutter UI dependencies).
-* Add a `checkSafety(Position userPos)` method that returns a `SafetyStatus` enum.
-* Inject the `Database` instance directly into it, not via a Riverpod `ref`.
+Add drawMountainMarkers(): Fetch all MountainRegions. Create a GeoJSON Source + SymbolLayer (ID: layer_mountain_markers). Use a mountain icon. Put the id in properties.
 
+Add drawBasecampMarkers(): Fetch all PointsOfInterest where type == PoiType.basecamp. Create a Source + SymbolLayer (ID: layer_basecamp_markers). Use a tent/house icon. Put the id in properties.
 
-2. **Update `BackgroundService`:**
-* Instantiate `DeviationEngine` inside the `onStart` method of the background service.
-* **The Loop:** Inside the `Timer.periodic` (GPS loop):
-1. Get raw GPS position.
-2. *(Placeholder for Phase 4: Apply Kalman Filter).*
-3. Pass position to `DeviationEngine.checkSafety()`.
-4. If status is `DANGER`, trigger `Vibration.vibrate()` (ensure `vibration` package is configured for background).
-5. `service.invoke('safety_status', status.name)` to send updates to the UI.
+Ensure these are called in the drawMapLayers sequence.
 
+TASK 2: Implement "Smart Trail Finder" (Logic)
 
+File: lib/data/local/daos/daos.dart (NavigationDao)
 
+Instructions:
 
-3. **Cleanup UI:**
-* Remove `DeviationEngine` calls from `OfflineMapScreen`.
-* Update `NavigationSheet` to listen to the `safety_status` stream from the background service instead of calculating it locally.
+Add a method: Future<Trail?> getTrailForBasecamp(PointOfInterest basecamp).
 
+Logic:
 
+Fetch all trails for basecamp.mountainId.
 
----
+Iterate through trails. Decode the first point of the geometryJson.
 
-### **Phase 2: Fix the O(N) Loop with Spatial Indexing**
+Calculate distance between basecamp location and trail start point.
 
-**Goal:** Prevent the "5-second freeze" by optimizing how we find relevant trails.
+Return the trail if distance < 500m (nearest match).
 
-**Files to Modify:**
+TASK 3: Create UI Sheets (Presentation)
 
-1. `lib/data/local/db/tables.dart`
-2. `lib/core/services/seeding_service.dart`
-3. `lib/features/navigation/logic/deviation_engine.dart`
+New File: lib/features/navigation/presentation/widgets/sheets/mountain_detail_sheet.dart
 
-**Instructions for Agent:**
+Show Mountain Name, Height (if available), Status.
 
-1. **Modify Schema (`tables.dart`):**
-* Add four `RealColumn` fields to the `Trail` table: `minLat`, `maxLat`, `minLng`, `maxLng`.
-* Run `flutter pub run build_runner build` to regenerate Drift code.
+List available Basecamps (clickable -> closes sheet, zooms to basecamp).
 
+New File: lib/features/navigation/presentation/widgets/sheets/basecamp_preview_sheet.dart
 
-2. **Update Seeding Logic (`seeding_service.dart`):**
-* When parsing the GeoJSON/JSON for a trail, calculate the bounding box (min/max coordinates) of that trail's geometry.
-* Insert these bounds into the new columns.
+Show Basecamp Name.
 
+Primary Button: "Start Hike Here".
 
-3. **Optimize Query (`deviation_engine.dart`):**
-* Current Logic: `SELECT * FROM trails` (Fetch all).
-* **New Logic:**
-```dart
-// Pseudo-code for Drift Query
-final userLat = position.latitude;
-final userLng = position.longitude;
-final buffer = 0.005; // approx 500m buffer
+Action: On press, call the "Smart Trail Finder" from Task 2. If a trail is found, set it as the active trail in the provider and close the sheet.
 
-final nearbyTrails = await (select(trails)
-  ..where((t) =>
-    t.minLat.isSmallerThanValue(userLat + buffer) &
-    t.maxLat.isBiggerThanValue(userLat - buffer) &
-    t.minLng.isSmallerThanValue(userLng + buffer) &
-    t.maxLng.isBiggerThanValue(userLng - buffer)
-  )).get();
+TASK 4: Handle Map Interactions (Wiring)
 
-```
+File: lib/features/navigation/presentation/offline_map_screen.dart
 
+Instructions:
 
-* Only run the heavy geometry math on this filtered list (`nearbyTrails`).
+In onMapCreated (or style loaded), setup onFeatureClick listener.
 
+Check feature.id or layer ID.
 
+If layer is layer_mountain_markers -> Fetch ID -> Show MountainDetailSheet.
 
----
+If layer is layer_basecamp_markers -> Fetch ID -> Show BasecampPreviewSheet.
 
-### **Phase 3: Prevent OOM (The "PBF Timebomb")**
+CONSTRAINTS:
 
-**Goal:** Stop the app from crashing on startup by removing heavy graph processing from the mobile device.
+Use showModalBottomSheet for the sheets.
 
-**Files to Modify:**
+Ensure the "Start Hike" action immediately draws the polyline for the found trail (use the existing mapLayerService.drawTrail or similar logic).
 
-1. `lib/core/services/routing_initialization_service.dart`
-2. `android/app/src/main/kotlin/.../GraphHopperService.kt`
-3. `assets/` (Folder structure)
-
-**Instructions for Agent:**
-
-1. **Asset Restructuring:**
-* **Action:** Create a strict rule: "We do not ship `.osm.pbf` files."
-* **New Asset:** `assets/graph_cache/central_java_gh.zip` (containing the `nodes`, `edges`, `geometry` files generated on a PC).
-
-
-2. **Update Initialization Service:**
-* Modify `RoutingInitializationService` to copy the `.zip` from assets to `ApplicationDocumentsDirectory`.
-* Unzip the folder.
-* Point `GraphHopper` to this unzipped folder.
-
-
-3. **Native Code Cleanup (`GraphHopperService.kt`):**
-* Remove the `importOrLoad()` logic that parses PBFs.
-* Change it to `load()` only. If the graph folder is corrupt or missing, return an error (don't try to rebuild it on the phone).
-
-
-
----
-
-### **Phase 4: "Corporate Grade" Signal Processing**
-
-**Goal:** Smooth out GPS noise so the safety engine doesn't panic when the GPS jumps 20 meters instantly.
-
-**Files to Modify:**
-
-1. `lib/core/utils/kalman_filter.dart` (New File)
-2. `lib/core/services/background_service.dart`
-
-**Instructions for Agent:**
-
-1. **Create `KalmanFilter` Class:**
-* Implement a simple 2D Kalman Filter (Lat/Lng).
-* **State:** `x` (position), `p` (covariance), `q` (process noise), `r` (measurement noise).
-* **Tuning:** Set `Q` (process noise) low (hiker moves slowly) and `R` (measurement noise) high (forest GPS is noisy).
-
-
-2. **Integrate in Background Service:**
-* Initialize `KalmanFilter` in `onStart`.
-* Inside the GPS loop:
-```dart
-// Raw
-final rawLat = position.latitude;
-final rawLng = position.longitude;
-
-// Smooth
-final smoothed = _kalmanFilter.process(rawLat, rawLng);
-
-// Use Smoothed for everything else
-_db.insertBreadcrumb(smoothed);
-_deviationEngine.checkSafety(smoothed);
-
-```
-
-
-
-
-
----
-
-### **Execution Priority**
-
-Tell your agent to execute in this order:
-
-1. **Phase 3** (Fixes the crash risk on startup).
-2. **Phase 2** (Fixes the battery drain/lag).
-3. **Phase 1** (Fixes the critical safety architecture).
-4. **Phase 4** (Polish).
+Handle the case where no trail matches the basecamp (show a SnackBar: "No mapped trail found for this basecamp").

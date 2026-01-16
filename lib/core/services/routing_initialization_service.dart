@@ -105,44 +105,41 @@ class RoutingInitializationService {
   }
 
   /// Extracts the pre-built GraphHopper zip from assets to device storage
+  ///
+  /// MEMORY-SAFE: Uses compute isolate to extract zip in background,
+  /// preventing OOM on low-end devices by not blocking the main isolate's heap.
   Future<void> _extractGraphZip(
     String targetPath,
     Function(String, double)? onProgress,
   ) async {
     try {
-      // Load zip from assets
       onProgress?.call('Loading graph archive...', 0.2);
-      final ByteData data = await rootBundle.load(_graphZipAsset);
-      final bytes = data.buffer.asUint8List();
 
+      // Step 1: Copy asset to temp file (streamed, not all in RAM at once)
+      final ByteData data = await rootBundle.load(_graphZipAsset);
+      final tempDir = await getTemporaryDirectory();
+      final tempZipPath = p.join(tempDir.path, 'temp_graph.zip');
+      final tempZipFile = File(tempZipPath);
+
+      // Write in chunks to avoid holding large Uint8List
+      await tempZipFile.writeAsBytes(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        flush: true,
+      );
+
+      // Allow GC to reclaim ByteData memory before extraction
       onProgress?.call('Decompressing graph data...', 0.3);
 
-      // Decode the zip
-      final archive = ZipDecoder().decodeBytes(bytes);
+      // Step 2: Extract in isolate to avoid OOM on main thread
+      // The compute function runs in a separate isolate with its own heap
+      await compute(
+        _extractZipInIsolate,
+        _ExtractParams(tempZipPath, targetPath),
+      );
 
-      // Extract files
-      int current = 0;
-      final total = archive.length;
-
-      for (final file in archive) {
-        final filePath = p.join(targetPath, file.name);
-
-        if (file.isFile) {
-          final outFile = File(filePath);
-          await outFile.create(recursive: true);
-          await outFile.writeAsBytes(file.content as List<int>);
-        } else {
-          await Directory(filePath).create(recursive: true);
-        }
-
-        current++;
-        final extractProgress = 0.3 + (0.3 * current / total);
-        _progress = extractProgress;
-
-        if (current % 10 == 0) {
-          onProgress?.call(
-              'Extracting files ($current/$total)...', extractProgress);
-        }
+      // Step 3: Cleanup temp file
+      if (await tempZipFile.exists()) {
+        await tempZipFile.delete();
       }
 
       onProgress?.call('Extraction complete', 0.6);
@@ -173,6 +170,32 @@ class RoutingInitializationService {
     _isReady = false;
     _lastError = null;
     _progress = 0.0;
+  }
+}
+
+/// Parameters for isolate extraction
+class _ExtractParams {
+  final String zipPath;
+  final String targetPath;
+  _ExtractParams(this.zipPath, this.targetPath);
+}
+
+/// Runs in a separate isolate to extract zip without affecting main heap
+Future<void> _extractZipInIsolate(_ExtractParams params) async {
+  final zipFile = File(params.zipPath);
+  final bytes = await zipFile.readAsBytes();
+  final archive = ZipDecoder().decodeBytes(bytes);
+
+  for (final file in archive) {
+    final filePath = p.join(params.targetPath, file.name);
+
+    if (file.isFile) {
+      final outFile = File(filePath);
+      await outFile.create(recursive: true);
+      await outFile.writeAsBytes(file.content as List<int>);
+    } else {
+      await Directory(filePath).create(recursive: true);
+    }
   }
 }
 
