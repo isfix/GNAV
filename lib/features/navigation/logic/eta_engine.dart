@@ -1,5 +1,6 @@
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:sunrise_sunset_calc/sunrise_sunset_calc.dart';
+import '../../../core/utils/geo_math.dart';
 
 class EtaEngine {
   // Naismith's Rule:
@@ -11,9 +12,8 @@ class EtaEngine {
 
   static Duration calculateEta(
       LatLng userLoc, double userAlt, LatLng targetLoc, double targetAlt) {
-    // 1. Horizontal Distance
-    final distMeters =
-        const Distance().as(LengthUnit.Meter, userLoc, targetLoc);
+    // 1. Horizontal Distance (using GeoMath Haversine)
+    final distMeters = GeoMath.distanceMeters(userLoc, targetLoc);
     final distKm = distMeters / 1000.0;
 
     // 2. Vertical Ascent (Only positive gain matters for effort)

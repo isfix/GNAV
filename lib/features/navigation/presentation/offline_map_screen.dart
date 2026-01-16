@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'package:drift/drift.dart' as drift;
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:vector_map_tiles/vector_map_tiles.dart';
-import 'package:vector_tile_renderer/vector_tile_renderer.dart' as vtr;
 
 // INTERNAL IMPORTS
 import '../../../data/local/db/converters.dart'; // For PoiType if needed
 import '../../../data/local/db/app_database.dart';
 import '../../../../core/services/seeding_service.dart';
 import '../../../../core/services/background_service.dart';
-import '../../../../core/utils/mbtiles_provider.dart';
 import '../logic/navigation_providers.dart';
 import '../logic/gps_state_machine.dart';
 import '../logic/haptic_compass_controller.dart';
-import '../logic/map_package_manager.dart';
 import '../logic/deviation_engine.dart';
 import '../logic/backtrack_engine.dart';
+import '../../../core/utils/geo_math.dart';
+import '../../../core/services/map_layer_service.dart';
+import '../../../core/services/routing_initialization_service.dart';
 
 // WIDGET IMPORTS (REFACTORED)
 import 'widgets/atoms/off_trail_warning_badge.dart';
@@ -45,7 +44,7 @@ class OfflineMapScreen extends ConsumerStatefulWidget {
 }
 
 class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
-  final MapController _mapController = MapController();
+  MapLibreMapController? _mapController;
 
   // Simulation State
   Timer? _simTimer;
@@ -64,8 +63,37 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    // 1. ALWAYS seed discovery data first (no permission needed)
+    await ref.read(seedingServiceProvider).seedDiscoveryData();
+
+    // 2. Then check permissions for background service
     _checkPermissions();
     _checkBatteryOptimizations();
+
+    // 3. Initialize routing engine in background (async, don't await)
+    _initializeRoutingEngine();
+  }
+
+  Future<void> _initializeRoutingEngine() async {
+    await routingInitializationService.initialize(
+      onProgress: (status, progress) {
+        debugPrint('Routing: $status ($progress)');
+        // Optionally show status in UI
+      },
+    );
+    if (routingInitializationService.isReady && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Offline routing engine ready'),
+          backgroundColor: Color(0xFF0df259),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _checkBatteryOptimizations() async {
@@ -75,7 +103,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-                "Recommended: Disable Battery Optimization for uninterrupted tracking."),
+              "Recommended: Disable Battery Optimization for uninterrupted tracking.",
+            ),
             action: SnackBarAction(
               label: "Disable",
               onPressed: () => Permission.ignoreBatteryOptimizations.request(),
@@ -106,8 +135,6 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     if (!await service.isRunning()) {
       await initializeBackgroundService();
     }
-
-    await ref.read(seedingServiceProvider).seedDiscoveryData();
   }
 
   void _startSimulation({bool deviate = false}) {
@@ -120,18 +147,12 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     _simPath = [];
     if (!deviate) {
       for (int i = 0; i < 20; i++) {
-        _simPath.add(LatLng(
-          -7.4526 + (i * -0.0003),
-          110.4422 + (i * 0.00025),
-        ));
+        _simPath.add(LatLng(-7.4526 + (i * -0.0003), 110.4422 + (i * 0.00025)));
       }
     } else {
       for (int i = 0; i < 30; i++) {
         double lngDrift = (i > 8) ? -0.0005 * (i - 8) : 0.00025 * i;
-        _simPath.add(LatLng(
-          -7.4526 + (i * -0.0003),
-          110.4422 + lngDrift,
-        ));
+        _simPath.add(LatLng(-7.4526 + (i * -0.0003), 110.4422 + lngDrift));
       }
     }
 
@@ -156,7 +177,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       );
 
       _processNavigationLogic(pt);
-      _mapController.move(pt, 16);
+      // TODO: PHASE 2 - MapLibre camera animation
+      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(pt, 16));
     });
   }
 
@@ -181,22 +203,29 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       ref.read(backtrackTargetProvider.notifier).state = path.last;
       ref.read(backtrackPathProvider.notifier).state = path;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text("Backtrack Path Found! Retrace your steps."),
-            backgroundColor: Colors.green));
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text("No Safe Path found in history!"),
-            backgroundColor: Colors.red));
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   Future<void> _downloadRegion(String id) async {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("Downloading Map Data...")));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Downloading Map Data...")));
 
     final seeder = ref.read(seedingServiceProvider);
     try {
@@ -252,15 +281,22 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           break;
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text("Download Complete!"),
-            backgroundColor: Colors.green));
+            backgroundColor: Colors.green,
+          ),
+        );
         ref.refresh(allMountainsProvider);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text("Download Failed: $e"), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Download Failed: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -271,8 +307,10 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       builder: (context) {
         return AlertDialog(
           backgroundColor: const Color(0xFF1C1C1E),
-          title:
-              const Text("Select Route", style: TextStyle(color: Colors.white)),
+          title: const Text(
+            "Select Route",
+            style: TextStyle(color: Colors.white),
+          ),
           content: SizedBox(
             width: double.maxFinite,
             child: FutureBuilder<AssetManifest>(
@@ -284,14 +322,18 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
                 final allAssets = snapshot.data!.listAssets();
                 final tracks = allAssets
-                    .where((key) =>
-                        key.startsWith('assets/tracks/') &&
-                        key.endsWith('.gpx'))
+                    .where(
+                      (key) =>
+                          key.startsWith('assets/tracks/') &&
+                          key.endsWith('.gpx'),
+                    )
                     .toList();
 
                 if (tracks.isEmpty) {
-                  return const Text("No tracks found in assets.",
-                      style: TextStyle(color: Colors.white54));
+                  return const Text(
+                    "No tracks found in assets.",
+                    style: TextStyle(color: Colors.white54),
+                  );
                 }
 
                 return ListView.builder(
@@ -307,13 +349,21 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                         .toUpperCase();
 
                     return ListTile(
-                      leading:
-                          const Icon(Icons.terrain, color: Colors.blueAccent),
-                      title: Text(name,
-                          style: const TextStyle(color: Colors.white)),
-                      subtitle: Text(path,
-                          style: const TextStyle(
-                              color: Colors.white24, fontSize: 10)),
+                      leading: const Icon(
+                        Icons.terrain,
+                        color: Colors.blueAccent,
+                      ),
+                      title: Text(
+                        name,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        path,
+                        style: const TextStyle(
+                          color: Colors.white24,
+                          fontSize: 10,
+                        ),
+                      ),
                       onTap: () async {
                         Navigator.pop(context);
                         // Infer mountainId from path if possible, or default
@@ -325,7 +375,11 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                         }
 
                         await _loadTrack(
-                            path, mountainId, name.replaceAll(' ', '_'), name);
+                          path,
+                          mountainId,
+                          name.replaceAll(' ', '_'),
+                          name,
+                        );
                       },
                     );
                   },
@@ -339,11 +393,19 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   }
 
   Future<void> _loadTrack(
-      String assetPath, String mountainId, String trailId, String name) async {
+    String assetPath,
+    String mountainId,
+    String trailId,
+    String name,
+  ) async {
     try {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Parsing GPX..."), duration: Duration(seconds: 1)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Parsing GPX..."),
+            duration: Duration(seconds: 1),
+          ),
+        );
       }
 
       await ref
@@ -355,21 +417,53 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       ref.refresh(activeTrailsProvider(mountainId));
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text("Route Loaded Successfully!"),
-            backgroundColor: Colors.green));
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red));
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
       }
     }
+  }
+
+  /// Draws all map layers after style is loaded
+  Future<void> _drawMapLayers() async {
+    final activeMountainId = ref.read(activeMountainIdProvider);
+
+    // Draw trails
+    final trailsAsync = await ref.read(
+      activeTrailsProvider(activeMountainId).future,
+    );
+    mapLayerService.drawTrails(trailsAsync);
+
+    // Draw danger zones
+    final dangerZones = ref.read(dangerZonesProvider);
+    mapLayerService.drawDangerZones(dangerZones);
+
+    // Draw backtrack if available
+    final backtrackPath = ref.read(backtrackPathProvider);
+    mapLayerService.drawBacktrackPath(backtrackPath);
+
+    // Add POI markers
+    final pois = await ref.read(activePoisProvider(activeMountainId).future);
+    mapLayerService.addPOIMarkers(pois);
+
+    // Add region markers
+    final regions = await ref.read(allMountainsProvider.future);
+    mapLayerService.addRegionMarkers(regions);
   }
 
   @override
   void dispose() {
     _simTimer?.cancel();
+    mapLayerService.detach();
     super.dispose();
   }
 
@@ -385,40 +479,11 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     final mapStyle = ref.watch(mapStyleProvider);
     final dangerZones = ref.watch(dangerZonesProvider);
 
-    // Dynamic Tile URL logic
-    String tileUrl;
-    List<String> subdomains;
-    switch (mapStyle) {
-      case MapLayerType.cyclOsm:
-        tileUrl =
-            'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png';
-        subdomains = ['a', 'b', 'c'];
-        break;
-      case MapLayerType.openTopo:
-        tileUrl = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
-        subdomains = ['a', 'b', 'c'];
-        break;
-      case MapLayerType.satellite:
-        tileUrl =
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-        subdomains = [];
-        break;
-      case MapLayerType.googleHybrid:
-        tileUrl = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}';
-        subdomains = [];
-        break;
-      case MapLayerType.osm:
-      default:
-        tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-        subdomains = ['a', 'b', 'c'];
-    }
-
-    // Heading Calculation
+    // Heading Calculation (using GeoMath now)
     double compassHeading = 0;
     if (backtrackTarget != null && userLocAsync.value != null) {
-      const Distance distance = Distance();
       final userPt = LatLng(userLocAsync.value!.lat, userLocAsync.value!.lng);
-      compassHeading = distance.bearing(userPt, backtrackTarget);
+      compassHeading = GeoMath.bearing(userPt, backtrackTarget);
 
       // Haptic Feedback
       _hapticController.checkHeading(0.0, compassHeading);
@@ -436,150 +501,23 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
             : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
         child: Stack(
           children: [
-            // 1. MAP LAYER
-            FlutterMap(
-              mapController: _mapController,
-              options: const MapOptions(
-                initialCenter: LatLng(-7.453, 110.445),
-                initialZoom: 13.0,
-                minZoom: 10.0,
-                maxZoom: 18.0,
+            // 1. MAP LAYER (MapLibre - PHASE 2)
+            MapLibreMap(
+              styleString: 'asset://assets/map_styles/dark_mountain.json',
+              initialCameraPosition: const CameraPosition(
+                target: LatLng(-7.453, 110.448), // Mt. Merbabu
+                zoom: 12.0,
               ),
-              children: [
-                if (mapStyle == MapLayerType.vector)
-                  FutureBuilder<String?>(
-                    future: ref
-                        .read(mapPackageManagerProvider)
-                        .getVectorFilePath(activeMountainId),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData && snapshot.data != null) {
-                        return VectorTileLayer(
-                          theme: _getMapTheme(context),
-                          tileProviders: TileProviders({
-                            'openmaptiles':
-                                MbTilesVectorTileProvider(path: snapshot.data!)
-                          }),
-                        );
-                      }
-                      return const Center(
-                          child: Text("Vector Data Not Found",
-                              style: TextStyle(
-                                  backgroundColor: Colors.white,
-                                  color: Colors.red)));
-                    },
-                  )
-                else
-                  TileLayer(
-                    urlTemplate: tileUrl,
-                    subdomains: subdomains,
-                    userAgentPackageName: 'com.pandu.navigation',
-                  ),
-
-                // Danger Zones
-                PolygonLayer(
-                  polygons: dangerZones
-                      .map((zone) => Polygon(
-                          points: zone,
-                          color: Colors.red.withOpacity(0.3),
-                          borderColor: Colors.red,
-                          borderStrokeWidth: 2.0,
-                          isFilled: true,
-                          label: "DANGER ZONE",
-                          labelStyle: const TextStyle(
-                              color: Colors.red, fontWeight: FontWeight.bold)))
-                      .toList(),
-                ),
-
-                // Trails
-                trailsAsync.when(
-                  data: (trails) => PolylineLayer(
-                    polylines: trails
-                        .map((t) => Polyline(
-                              points: (t.geometryJson as List)
-                                  .cast<TrailPoint>()
-                                  .map((p) => p.toLatLng())
-                                  .toList(),
-                              strokeWidth: 4.0,
-                              color: const Color(0xFF0df259),
-                            ))
-                        .toList(),
-                  ),
-                  error: (e, s) => const SizedBox(),
-                  loading: () => const SizedBox(),
-                ),
-
-                // POIs
-                ref.watch(activePoisProvider(activeMountainId)).when(
-                      data: (pois) => MarkerLayer(
-                        markers:
-                            pois.map((poi) => _buildPoiMarker(poi)).toList(),
-                      ),
-                      loading: () => const SizedBox(),
-                      error: (_, __) => const SizedBox(),
-                    ),
-
-                // Discovery Markers
-                allMountainsAsync.when(
-                  data: (regions) => MarkerLayer(
-                    markers: regions
-                        .where((r) => r.lat != 0)
-                        .map((r) => _buildRegionMarker(r))
-                        .toList(),
-                  ),
-                  loading: () => const SizedBox(),
-                  error: (_, __) => const SizedBox(),
-                ),
-
-                // Backtrack Line
-                if (backtrackPath != null)
-                  PolylineLayer(polylines: [
-                    Polyline(
-                      points: backtrackPath,
-                      strokeWidth: 4.0,
-                      color: const Color(0xFFff3b30),
-                      isDotted: true,
-                    )
-                  ]),
-
-                // Backtrack Target
-                if (backtrackTarget != null)
-                  MarkerLayer(markers: [
-                    Marker(
-                      point: backtrackTarget,
-                      child: const Icon(Icons.safety_check,
-                          color: Color(0xFF0df259), size: 30),
-                    )
-                  ]),
-
-                // User Location
-                MarkerLayer(markers: [
-                  if (userLocAsync.value != null)
-                    Marker(
-                      point: LatLng(
-                          userLocAsync.value!.lat, userLocAsync.value!.lng),
-                      width: 60,
-                      height: 60,
-                      child: CompassBearing(
-                        heading: compassHeading,
-                        child: Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                  color: Colors.blue.withOpacity(0.5),
-                                  blurRadius: 10,
-                                  spreadRadius: 2)
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                ]),
-              ],
+              myLocationEnabled: true,
+              compassEnabled: true,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                mapLayerService.attach(controller);
+              },
+              onStyleLoadedCallback: () {
+                // Draw layers once style is loaded
+                _drawMapLayers();
+              },
             ),
 
             // 2. SEARCH BAR OR OVERLAY
@@ -591,7 +529,12 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                     setState(() => _isSearching = false);
                     ref.read(activeMountainIdProvider.notifier).state =
                         region.id;
-                    _mapController.move(LatLng(region.lat, region.lng), 14);
+                    _mapController?.animateCamera(
+                      CameraUpdate.newLatLngZoom(
+                        LatLng(region.lat, region.lng),
+                        14,
+                      ),
+                    );
                     if (!region.isDownloaded) {
                       _downloadRegion(region.id);
                     }
@@ -600,13 +543,14 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
               )
             else
               Positioned(
-                  top: MediaQuery.of(context).padding.top + 10,
-                  left: 16,
-                  right: 16,
-                  child: GestureDetector(
-                    onTap: () => setState(() => _isSearching = true),
-                    child: const MapSearchBar(enabled: false),
-                  )),
+                top: MediaQuery.of(context).padding.top + 10,
+                left: 16,
+                right: 16,
+                child: GestureDetector(
+                  onTap: () => setState(() => _isSearching = true),
+                  child: const MapSearchBar(enabled: false),
+                ),
+              ),
 
             // 3. OFF TRAIL WARNING
             if (safetyStatus == SafetyStatus.danger)
@@ -623,26 +567,42 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
               bottom: 240, // Shifted up to avoid collision
               child: MapSideControls(
                 onZoomIn: () {
-                  final z = _mapController.camera.zoom;
-                  _mapController.move(_mapController.camera.center, z + 1);
+                  if (_mapController != null) {
+                    final currentZoom =
+                        _mapController!.cameraPosition?.zoom ?? 12;
+                    _mapController!.animateCamera(
+                      CameraUpdate.zoomTo(currentZoom + 1),
+                    );
+                  }
                 },
                 onZoomOut: () {
-                  final z = _mapController.camera.zoom;
-                  _mapController.move(_mapController.camera.center, z - 1);
+                  if (_mapController != null) {
+                    final currentZoom =
+                        _mapController!.cameraPosition?.zoom ?? 12;
+                    _mapController!.animateCamera(
+                      CameraUpdate.zoomTo(currentZoom - 1),
+                    );
+                  }
                 },
                 onCenter: () {
-                  if (userLocAsync.value != null) {
-                    _mapController.move(
+                  if (userLocAsync.value != null && _mapController != null) {
+                    _mapController!.animateCamera(
+                      CameraUpdate.newLatLngZoom(
                         LatLng(
-                            userLocAsync.value!.lat, userLocAsync.value!.lng),
-                        15);
+                          userLocAsync.value!.lat,
+                          userLocAsync.value!.lng,
+                        ),
+                        15,
+                      ),
+                    );
                   }
                 },
                 onLayer: () {
                   showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      builder: (ctx) => const MapStyleSelector());
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (ctx) => const MapStyleSelector(),
+                  );
                 },
                 onLoadRoute: _showTrackSelectionDialog,
               ),
@@ -667,27 +627,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   }
 
   // --- Helpers ---
-
-  vtr.Theme _getMapTheme(BuildContext context) {
-    return vtr.ThemeReader().read({
-      "version": 8,
-      "name": "Dark",
-      "layers": [
-        {
-          "id": "background",
-          "type": "background",
-          "paint": {"background-color": "#121212"}
-        },
-        {
-          "id": "water",
-          "type": "fill",
-          "source": "openmaptiles",
-          "source-layer": "water",
-          "paint": {"fill-color": "#1f2937"}
-        }
-      ]
-    });
-  }
+  // TODO: PHASE 2 - Implement MapLibre-native helpers for POI symbols, Region clusters, etc.
 
   Widget _buildDevDrawer() {
     return Drawer(
@@ -697,16 +637,21 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         children: [
           const DrawerHeader(
             decoration: BoxDecoration(color: Colors.black),
-            child: Text('DEV TOOLS',
-                style: TextStyle(
-                    color: Color(0xFF0df259),
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold)),
+            child: Text(
+              'DEV TOOLS',
+              style: TextStyle(
+                color: Color(0xFF0df259),
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
           ListTile(
             leading: const Icon(Icons.play_arrow, color: Color(0xFF0df259)),
-            title: const Text('Simulate Safe Walk',
-                style: TextStyle(color: Colors.white)),
+            title: const Text(
+              'Simulate Safe Walk',
+              style: TextStyle(color: Colors.white),
+            ),
             onTap: () {
               Navigator.pop(context);
               _startSimulation(deviate: false);
@@ -714,8 +659,10 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.warning, color: Color(0xFFff3b30)),
-            title: const Text('Simulate Deviation',
-                style: TextStyle(color: Colors.white)),
+            title: const Text(
+              'Simulate Deviation',
+              style: TextStyle(color: Colors.white),
+            ),
             onTap: () {
               Navigator.pop(context);
               _startSimulation(deviate: true);
@@ -723,116 +670,16 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.stop, color: Colors.grey),
-            title: const Text('Stop Simulation',
-                style: TextStyle(color: Colors.white)),
+            title: const Text(
+              'Stop Simulation',
+              style: TextStyle(color: Colors.white),
+            ),
             onTap: () {
               Navigator.pop(context);
               _simTimer?.cancel();
             },
           ),
         ],
-      ),
-    );
-  }
-
-  Marker _buildPoiMarker(dynamic poi) {
-    IconData icon = Icons.place;
-    Color color = Colors.white;
-    switch (poi.type) {
-      case PoiType.water:
-        icon = Icons.water_drop;
-        color = Colors.blueAccent;
-        break;
-      case PoiType.summit:
-        icon = Icons.flag;
-        color = Colors.orangeAccent;
-        break;
-      case PoiType.shelter:
-        icon = Icons.home_filled;
-        color = Colors.yellowAccent;
-        break;
-      case PoiType.basecamp:
-        icon = Icons.holiday_village;
-        color = const Color(0xFF0df259);
-        break;
-      case PoiType.dangerZone:
-        icon = Icons.warning;
-        color = const Color(0xFFff3b30);
-        break;
-      default:
-        break;
-    }
-    return Marker(
-      point: LatLng(poi.lat, poi.lng),
-      width: 40,
-      height: 40,
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          shape: BoxShape.circle,
-          border: Border.all(color: color, width: 2),
-        ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-    );
-  }
-
-  Marker _buildRegionMarker(dynamic region) {
-    final isMerapi = region.id == 'merapi';
-    return Marker(
-      point: LatLng(region.lat, region.lng),
-      width: 70,
-      height: 70,
-      child: GestureDetector(
-        onTap: () {
-          if (isMerapi) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('DANGER ZONE: Mount Merapi is closed!'),
-                backgroundColor: Colors.red));
-            return;
-          }
-          showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (ctx) => RegionPreviewSheet(
-                  region: region,
-                  onAction: (LatLng? target) {
-                    Navigator.pop(context);
-                    ref.read(activeMountainIdProvider.notifier).state =
-                        region.id;
-                    if (!region.isDownloaded) {
-                      _downloadRegion(region.id);
-                    }
-                    final dest = target ?? LatLng(region.lat, region.lng);
-                    _mapController.move(dest, 15);
-                  }));
-        },
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: isMerapi
-                    ? const Color(0xFFff3b30)
-                    : const Color(0xFF0df259).withOpacity(0.8),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Icon(isMerapi ? Icons.warning_amber : Icons.terrain,
-                  color: Colors.white, size: 24),
-            ),
-            Container(
-              margin: const EdgeInsets.only(top: 2),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(4)),
-              child: Text(region.name.replaceAll('Mount ', ''),
-                  style: const TextStyle(color: Colors.white, fontSize: 10)),
-            )
-          ],
-        ),
       ),
     );
   }

@@ -1,0 +1,35 @@
+{
+    "version": 8,
+    "name": "PANDU Dark Mountain",
+    "sources": {
+        "osm-raster": {
+            "type": "raster",
+            "tiles": [
+                "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+                "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+                "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
+            ],
+            "tileSize": 256,
+            "attribution": "© OpenTopoMap contributors"
+        }
+    },
+    "layers": [
+        {
+            "id": "background",
+            "type": "background",
+            "paint": {
+                "background-color": "#0a0a0a"
+            }
+        },
+        {
+            "id": "osm-tiles",
+            "type": "raster",
+            "source": "osm-raster",
+            "paint": {
+                "raster-opacity": 0.9,
+                "raster-saturation": -0.3,
+                "raster-brightness-min": 0.1
+            }
+        }
+    ]
+}

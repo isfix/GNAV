@@ -26,7 +26,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = 36
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -46,4 +46,10 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    
+    // GraphHopper Routing Engine
+    implementation("com.graphhopper:graphhopper-core:8.0")
+    implementation("com.graphhopper:graphhopper-reader-osm:8.0")
+    implementation("org.slf4j:slf4j-android:1.7.36")
 }
+

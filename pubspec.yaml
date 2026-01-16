@@ -16,10 +16,8 @@ dependencies:
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1
 
-  # Map Engine
-  flutter_map: ^6.1.0
-  vector_map_tiles: ^7.0.1
-  latlong2: ^0.9.0
+  # Map Engine (MapLibre - Corporate Grade)
+  maplibre_gl: ^0.20.0
 
   # Local Persistence
   drift: ^2.15.0
@@ -63,3 +61,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/tracks/
+    - assets/map_styles/
+    - assets/map_data/
+    - assets/graph_cache/
+

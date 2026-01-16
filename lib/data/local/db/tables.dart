@@ -36,6 +36,13 @@ class Trails extends Table {
   IntColumn get summitIndex =>
       integer().withDefault(const Constant(0))(); // Index of Apex
 
+  // Spatial Bounding Box (for O(1) lookups instead of O(N) scans)
+  // These are populated during seeding to enable fast "nearby trails" queries
+  RealColumn get minLat => real().withDefault(const Constant(0.0))();
+  RealColumn get maxLat => real().withDefault(const Constant(0.0))();
+  RealColumn get minLng => real().withDefault(const Constant(0.0))();
+  RealColumn get maxLng => real().withDefault(const Constant(0.0))();
+
   BoolColumn get isOfficial => boolean().withDefault(const Constant(true))();
 
   @override

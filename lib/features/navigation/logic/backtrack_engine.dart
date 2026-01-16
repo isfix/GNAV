@@ -1,6 +1,7 @@
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:drift/drift.dart';
 import '../../../data/local/db/app_database.dart';
+import '../../../core/utils/geo_math.dart';
 import 'deviation_engine.dart';
 
 class BacktrackEngine {
@@ -47,7 +48,6 @@ class BacktrackEngine {
 
   /// Calculates bearing from Start to End in Degrees (0-360)
   double calculateBearing(LatLng start, LatLng end) {
-    const Distance distance = Distance();
-    return distance.bearing(start, end);
+    return GeoMath.bearing(start, end);
   }
 }

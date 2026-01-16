@@ -5,9 +5,13 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:drift/drift.dart' as drift;
+import 'package:vibration/vibration.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 
 // Imports for Logic
 import '../../data/local/db/app_database.dart';
+import '../../features/navigation/logic/deviation_engine.dart';
+import '../utils/kalman_filter.dart';
 
 // Note: We cannot easily share Riverpod state between isolates without serialization.
 // We will use the Database as the communication bus.
@@ -60,6 +64,10 @@ void onStart(ServiceInstance service) async {
   // 1. Initialize Dart Bridge
   DartPluginRegistrant.ensureInitialized();
 
+  // 1b. Initialize Notifications locally
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
   // 2. Initialize Database (New connection in this isolate)
   final db = AppDatabase();
 
@@ -81,17 +89,29 @@ void onStart(ServiceInstance service) async {
   // 3. Configure Geolocator Stream Management
   StreamSubscription<Position>? positionStream;
 
+  // Safety Logic (runs in background, independent of UI)
+  String _currentSafetyStatus = 'safe';
+
+  // Phase 4: Kalman Filter for GPS smoothing
+  final _kalmanFilter =
+      KalmanFilter.forest(); // Tuned for mountain/forest GPS noise
+
   void startStream(LocationSettings settings) {
     positionStream?.cancel();
     positionStream = Geolocator.getPositionStream(locationSettings: settings)
         .listen((Position? position) async {
       if (position != null) {
-        // A. SAVE TO DB
+        // Phase 4: Apply Kalman Filter to smooth GPS noise
+        final smoothed =
+            _kalmanFilter.process(position.latitude, position.longitude);
+        final lat = smoothed.lat;
+        final lng = smoothed.lng;
+
         // A. BUFFER TO DB
         buffer.add(UserBreadcrumbsCompanion(
           sessionId: const drift.Value('current_session'),
-          lat: drift.Value(position.latitude),
-          lng: drift.Value(position.longitude),
+          lat: drift.Value(lat),
+          lng: drift.Value(lng),
           altitude: drift.Value(position.altitude),
           accuracy: drift.Value(position.accuracy),
           speed: drift.Value(position.speed),
@@ -110,13 +130,52 @@ void onStart(ServiceInstance service) async {
           flushTimer = null;
         });
 
-        // B. UPDATE NOTIFICATION
+        // B. SAFETY CHECK (Decoupled from UI - Phase 1)
+        try {
+          // Use spatial query for nearby trails (optimized O(1) lookup)
+          final nearbyTrails =
+              await db.navigationDao.getNearbyTrails(lat, lng, buffer: 0.01);
+
+          if (nearbyTrails.isNotEmpty) {
+            final latLng = LatLng(lat, lng);
+            final minDistance =
+                DeviationEngine.calculateMinDistance(latLng, nearbyTrails);
+            final status = DeviationEngine.determineStatus(minDistance);
+
+            final statusName = status.name;
+            if (statusName != _currentSafetyStatus) {
+              _currentSafetyStatus = statusName;
+
+              // Send safety status to UI via service invoke
+              service.invoke('safety_status',
+                  {'status': statusName, 'distance': minDistance});
+
+              // CRITICAL: If DANGER, vibrate immediately (even with screen off)
+              if (status == SafetyStatus.danger) {
+                Vibration.vibrate(
+                    pattern: [0, 500, 200, 500, 200, 500], amplitude: 255);
+              } else if (status == SafetyStatus.warning) {
+                Vibration.vibrate(duration: 200);
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[BG] Safety check error: $e');
+        }
+
+        // C. UPDATE NOTIFICATION
         if (service is AndroidServiceInstance) {
           if (await service.isForegroundService()) {
+            final safetyEmoji = _currentSafetyStatus == 'danger'
+                ? '🔴'
+                : _currentSafetyStatus == 'warning'
+                    ? '🟡'
+                    : '🟢';
+
             flutterLocalNotificationsPlugin.show(
               888,
-              'PANDU ACTIVE',
-              'Lat: ${position.latitude.toStringAsFixed(5)}, Lng: ${position.longitude.toStringAsFixed(5)}',
+              'PANDU $safetyEmoji',
+              'Lat: ${lat.toStringAsFixed(5)}, Lng: ${lng.toStringAsFixed(5)}',
               const NotificationDetails(
                 android: AndroidNotificationDetails(
                   'my_foreground',
@@ -133,7 +192,7 @@ void onStart(ServiceInstance service) async {
           'update',
           {
             "content":
-                "Active: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}",
+                "$_currentSafetyStatus: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}",
           },
         );
       }
@@ -173,7 +232,3 @@ void onStart(ServiceInstance service) async {
     }
   });
 }
-
-// Global instance for simple access inside onStart if needed
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();

@@ -1,4 +1,4 @@
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:vibration/vibration.dart';
 import 'package:flutter/foundation.dart';
 

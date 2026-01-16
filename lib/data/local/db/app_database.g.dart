@@ -545,6 +545,34 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
       type: DriftSqlType.int,
       requiredDuringInsert: false,
       defaultValue: const Constant(0));
+  static const VerificationMeta _minLatMeta = const VerificationMeta('minLat');
+  @override
+  late final GeneratedColumn<double> minLat = GeneratedColumn<double>(
+      'min_lat', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _maxLatMeta = const VerificationMeta('maxLat');
+  @override
+  late final GeneratedColumn<double> maxLat = GeneratedColumn<double>(
+      'max_lat', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _minLngMeta = const VerificationMeta('minLng');
+  @override
+  late final GeneratedColumn<double> minLng = GeneratedColumn<double>(
+      'min_lng', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _maxLngMeta = const VerificationMeta('maxLng');
+  @override
+  late final GeneratedColumn<double> maxLng = GeneratedColumn<double>(
+      'max_lng', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
   static const VerificationMeta _isOfficialMeta =
       const VerificationMeta('isOfficial');
   @override
@@ -565,6 +593,10 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
         elevationGain,
         difficulty,
         summitIndex,
+        minLat,
+        maxLat,
+        minLng,
+        maxLng,
         isOfficial
       ];
   @override
@@ -618,6 +650,22 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
           summitIndex.isAcceptableOrUnknown(
               data['summit_index']!, _summitIndexMeta));
     }
+    if (data.containsKey('min_lat')) {
+      context.handle(_minLatMeta,
+          minLat.isAcceptableOrUnknown(data['min_lat']!, _minLatMeta));
+    }
+    if (data.containsKey('max_lat')) {
+      context.handle(_maxLatMeta,
+          maxLat.isAcceptableOrUnknown(data['max_lat']!, _maxLatMeta));
+    }
+    if (data.containsKey('min_lng')) {
+      context.handle(_minLngMeta,
+          minLng.isAcceptableOrUnknown(data['min_lng']!, _minLngMeta));
+    }
+    if (data.containsKey('max_lng')) {
+      context.handle(_maxLngMeta,
+          maxLng.isAcceptableOrUnknown(data['max_lng']!, _maxLngMeta));
+    }
     if (data.containsKey('is_official')) {
       context.handle(
           _isOfficialMeta,
@@ -650,6 +698,14 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
           .read(DriftSqlType.int, data['${effectivePrefix}difficulty'])!,
       summitIndex: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}summit_index'])!,
+      minLat: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}min_lat'])!,
+      maxLat: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}max_lat'])!,
+      minLng: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}min_lng'])!,
+      maxLng: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}max_lng'])!,
       isOfficial: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_official'])!,
     );
@@ -673,6 +729,10 @@ class Trail extends DataClass implements Insertable<Trail> {
   final double elevationGain;
   final int difficulty;
   final int summitIndex;
+  final double minLat;
+  final double maxLat;
+  final double minLng;
+  final double maxLng;
   final bool isOfficial;
   const Trail(
       {required this.id,
@@ -683,6 +743,10 @@ class Trail extends DataClass implements Insertable<Trail> {
       required this.elevationGain,
       required this.difficulty,
       required this.summitIndex,
+      required this.minLat,
+      required this.maxLat,
+      required this.minLng,
+      required this.maxLng,
       required this.isOfficial});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -698,6 +762,10 @@ class Trail extends DataClass implements Insertable<Trail> {
     map['elevation_gain'] = Variable<double>(elevationGain);
     map['difficulty'] = Variable<int>(difficulty);
     map['summit_index'] = Variable<int>(summitIndex);
+    map['min_lat'] = Variable<double>(minLat);
+    map['max_lat'] = Variable<double>(maxLat);
+    map['min_lng'] = Variable<double>(minLng);
+    map['max_lng'] = Variable<double>(maxLng);
     map['is_official'] = Variable<bool>(isOfficial);
     return map;
   }
@@ -712,6 +780,10 @@ class Trail extends DataClass implements Insertable<Trail> {
       elevationGain: Value(elevationGain),
       difficulty: Value(difficulty),
       summitIndex: Value(summitIndex),
+      minLat: Value(minLat),
+      maxLat: Value(maxLat),
+      minLng: Value(minLng),
+      maxLng: Value(maxLng),
       isOfficial: Value(isOfficial),
     );
   }
@@ -728,6 +800,10 @@ class Trail extends DataClass implements Insertable<Trail> {
       elevationGain: serializer.fromJson<double>(json['elevationGain']),
       difficulty: serializer.fromJson<int>(json['difficulty']),
       summitIndex: serializer.fromJson<int>(json['summitIndex']),
+      minLat: serializer.fromJson<double>(json['minLat']),
+      maxLat: serializer.fromJson<double>(json['maxLat']),
+      minLng: serializer.fromJson<double>(json['minLng']),
+      maxLng: serializer.fromJson<double>(json['maxLng']),
       isOfficial: serializer.fromJson<bool>(json['isOfficial']),
     );
   }
@@ -743,6 +819,10 @@ class Trail extends DataClass implements Insertable<Trail> {
       'elevationGain': serializer.toJson<double>(elevationGain),
       'difficulty': serializer.toJson<int>(difficulty),
       'summitIndex': serializer.toJson<int>(summitIndex),
+      'minLat': serializer.toJson<double>(minLat),
+      'maxLat': serializer.toJson<double>(maxLat),
+      'minLng': serializer.toJson<double>(minLng),
+      'maxLng': serializer.toJson<double>(maxLng),
       'isOfficial': serializer.toJson<bool>(isOfficial),
     };
   }
@@ -756,6 +836,10 @@ class Trail extends DataClass implements Insertable<Trail> {
           double? elevationGain,
           int? difficulty,
           int? summitIndex,
+          double? minLat,
+          double? maxLat,
+          double? minLng,
+          double? maxLng,
           bool? isOfficial}) =>
       Trail(
         id: id ?? this.id,
@@ -766,6 +850,10 @@ class Trail extends DataClass implements Insertable<Trail> {
         elevationGain: elevationGain ?? this.elevationGain,
         difficulty: difficulty ?? this.difficulty,
         summitIndex: summitIndex ?? this.summitIndex,
+        minLat: minLat ?? this.minLat,
+        maxLat: maxLat ?? this.maxLat,
+        minLng: minLng ?? this.minLng,
+        maxLng: maxLng ?? this.maxLng,
         isOfficial: isOfficial ?? this.isOfficial,
       );
   Trail copyWithCompanion(TrailsCompanion data) {
@@ -785,6 +873,10 @@ class Trail extends DataClass implements Insertable<Trail> {
           data.difficulty.present ? data.difficulty.value : this.difficulty,
       summitIndex:
           data.summitIndex.present ? data.summitIndex.value : this.summitIndex,
+      minLat: data.minLat.present ? data.minLat.value : this.minLat,
+      maxLat: data.maxLat.present ? data.maxLat.value : this.maxLat,
+      minLng: data.minLng.present ? data.minLng.value : this.minLng,
+      maxLng: data.maxLng.present ? data.maxLng.value : this.maxLng,
       isOfficial:
           data.isOfficial.present ? data.isOfficial.value : this.isOfficial,
     );
@@ -801,14 +893,30 @@ class Trail extends DataClass implements Insertable<Trail> {
           ..write('elevationGain: $elevationGain, ')
           ..write('difficulty: $difficulty, ')
           ..write('summitIndex: $summitIndex, ')
+          ..write('minLat: $minLat, ')
+          ..write('maxLat: $maxLat, ')
+          ..write('minLng: $minLng, ')
+          ..write('maxLng: $maxLng, ')
           ..write('isOfficial: $isOfficial')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, mountainId, name, geometryJson, distance,
-      elevationGain, difficulty, summitIndex, isOfficial);
+  int get hashCode => Object.hash(
+      id,
+      mountainId,
+      name,
+      geometryJson,
+      distance,
+      elevationGain,
+      difficulty,
+      summitIndex,
+      minLat,
+      maxLat,
+      minLng,
+      maxLng,
+      isOfficial);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -821,6 +929,10 @@ class Trail extends DataClass implements Insertable<Trail> {
           other.elevationGain == this.elevationGain &&
           other.difficulty == this.difficulty &&
           other.summitIndex == this.summitIndex &&
+          other.minLat == this.minLat &&
+          other.maxLat == this.maxLat &&
+          other.minLng == this.minLng &&
+          other.maxLng == this.maxLng &&
           other.isOfficial == this.isOfficial);
 }
 
@@ -833,6 +945,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
   final Value<double> elevationGain;
   final Value<int> difficulty;
   final Value<int> summitIndex;
+  final Value<double> minLat;
+  final Value<double> maxLat;
+  final Value<double> minLng;
+  final Value<double> maxLng;
   final Value<bool> isOfficial;
   final Value<int> rowid;
   const TrailsCompanion({
@@ -844,6 +960,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     this.elevationGain = const Value.absent(),
     this.difficulty = const Value.absent(),
     this.summitIndex = const Value.absent(),
+    this.minLat = const Value.absent(),
+    this.maxLat = const Value.absent(),
+    this.minLng = const Value.absent(),
+    this.maxLng = const Value.absent(),
     this.isOfficial = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -856,6 +976,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     this.elevationGain = const Value.absent(),
     this.difficulty = const Value.absent(),
     this.summitIndex = const Value.absent(),
+    this.minLat = const Value.absent(),
+    this.maxLat = const Value.absent(),
+    this.minLng = const Value.absent(),
+    this.maxLng = const Value.absent(),
     this.isOfficial = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -871,6 +995,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     Expression<double>? elevationGain,
     Expression<int>? difficulty,
     Expression<int>? summitIndex,
+    Expression<double>? minLat,
+    Expression<double>? maxLat,
+    Expression<double>? minLng,
+    Expression<double>? maxLng,
     Expression<bool>? isOfficial,
     Expression<int>? rowid,
   }) {
@@ -883,6 +1011,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       if (elevationGain != null) 'elevation_gain': elevationGain,
       if (difficulty != null) 'difficulty': difficulty,
       if (summitIndex != null) 'summit_index': summitIndex,
+      if (minLat != null) 'min_lat': minLat,
+      if (maxLat != null) 'max_lat': maxLat,
+      if (minLng != null) 'min_lng': minLng,
+      if (maxLng != null) 'max_lng': maxLng,
       if (isOfficial != null) 'is_official': isOfficial,
       if (rowid != null) 'rowid': rowid,
     });
@@ -897,6 +1029,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       Value<double>? elevationGain,
       Value<int>? difficulty,
       Value<int>? summitIndex,
+      Value<double>? minLat,
+      Value<double>? maxLat,
+      Value<double>? minLng,
+      Value<double>? maxLng,
       Value<bool>? isOfficial,
       Value<int>? rowid}) {
     return TrailsCompanion(
@@ -908,6 +1044,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       elevationGain: elevationGain ?? this.elevationGain,
       difficulty: difficulty ?? this.difficulty,
       summitIndex: summitIndex ?? this.summitIndex,
+      minLat: minLat ?? this.minLat,
+      maxLat: maxLat ?? this.maxLat,
+      minLng: minLng ?? this.minLng,
+      maxLng: maxLng ?? this.maxLng,
       isOfficial: isOfficial ?? this.isOfficial,
       rowid: rowid ?? this.rowid,
     );
@@ -941,6 +1081,18 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     if (summitIndex.present) {
       map['summit_index'] = Variable<int>(summitIndex.value);
     }
+    if (minLat.present) {
+      map['min_lat'] = Variable<double>(minLat.value);
+    }
+    if (maxLat.present) {
+      map['max_lat'] = Variable<double>(maxLat.value);
+    }
+    if (minLng.present) {
+      map['min_lng'] = Variable<double>(minLng.value);
+    }
+    if (maxLng.present) {
+      map['max_lng'] = Variable<double>(maxLng.value);
+    }
     if (isOfficial.present) {
       map['is_official'] = Variable<bool>(isOfficial.value);
     }
@@ -961,6 +1113,10 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
           ..write('elevationGain: $elevationGain, ')
           ..write('difficulty: $difficulty, ')
           ..write('summitIndex: $summitIndex, ')
+          ..write('minLat: $minLat, ')
+          ..write('maxLat: $maxLat, ')
+          ..write('minLng: $minLng, ')
+          ..write('maxLng: $maxLng, ')
           ..write('isOfficial: $isOfficial, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2630,6 +2786,10 @@ typedef $$TrailsTableCreateCompanionBuilder = TrailsCompanion Function({
   Value<double> elevationGain,
   Value<int> difficulty,
   Value<int> summitIndex,
+  Value<double> minLat,
+  Value<double> maxLat,
+  Value<double> minLng,
+  Value<double> maxLng,
   Value<bool> isOfficial,
   Value<int> rowid,
 });
@@ -2642,6 +2802,10 @@ typedef $$TrailsTableUpdateCompanionBuilder = TrailsCompanion Function({
   Value<double> elevationGain,
   Value<int> difficulty,
   Value<int> summitIndex,
+  Value<double> minLat,
+  Value<double> maxLat,
+  Value<double> minLng,
+  Value<double> maxLng,
   Value<bool> isOfficial,
   Value<int> rowid,
 });
@@ -2699,6 +2863,18 @@ class $$TrailsTableFilterComposer
   ColumnFilters<int> get summitIndex => $composableBuilder(
       column: $table.summitIndex, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<double> get minLat => $composableBuilder(
+      column: $table.minLat, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get maxLat => $composableBuilder(
+      column: $table.maxLat, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get minLng => $composableBuilder(
+      column: $table.minLng, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get maxLng => $composableBuilder(
+      column: $table.maxLng, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => ColumnFilters(column));
 
@@ -2755,6 +2931,18 @@ class $$TrailsTableOrderingComposer
   ColumnOrderings<int> get summitIndex => $composableBuilder(
       column: $table.summitIndex, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get minLat => $composableBuilder(
+      column: $table.minLat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get maxLat => $composableBuilder(
+      column: $table.maxLat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get minLng => $composableBuilder(
+      column: $table.minLng, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get maxLng => $composableBuilder(
+      column: $table.maxLng, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => ColumnOrderings(column));
 
@@ -2809,6 +2997,18 @@ class $$TrailsTableAnnotationComposer
 
   GeneratedColumn<int> get summitIndex => $composableBuilder(
       column: $table.summitIndex, builder: (column) => column);
+
+  GeneratedColumn<double> get minLat =>
+      $composableBuilder(column: $table.minLat, builder: (column) => column);
+
+  GeneratedColumn<double> get maxLat =>
+      $composableBuilder(column: $table.maxLat, builder: (column) => column);
+
+  GeneratedColumn<double> get minLng =>
+      $composableBuilder(column: $table.minLng, builder: (column) => column);
+
+  GeneratedColumn<double> get maxLng =>
+      $composableBuilder(column: $table.maxLng, builder: (column) => column);
 
   GeneratedColumn<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => column);
@@ -2865,6 +3065,10 @@ class $$TrailsTableTableManager extends RootTableManager<
             Value<double> elevationGain = const Value.absent(),
             Value<int> difficulty = const Value.absent(),
             Value<int> summitIndex = const Value.absent(),
+            Value<double> minLat = const Value.absent(),
+            Value<double> maxLat = const Value.absent(),
+            Value<double> minLng = const Value.absent(),
+            Value<double> maxLng = const Value.absent(),
             Value<bool> isOfficial = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2877,6 +3081,10 @@ class $$TrailsTableTableManager extends RootTableManager<
             elevationGain: elevationGain,
             difficulty: difficulty,
             summitIndex: summitIndex,
+            minLat: minLat,
+            maxLat: maxLat,
+            minLng: minLng,
+            maxLng: maxLng,
             isOfficial: isOfficial,
             rowid: rowid,
           ),
@@ -2889,6 +3097,10 @@ class $$TrailsTableTableManager extends RootTableManager<
             Value<double> elevationGain = const Value.absent(),
             Value<int> difficulty = const Value.absent(),
             Value<int> summitIndex = const Value.absent(),
+            Value<double> minLat = const Value.absent(),
+            Value<double> maxLat = const Value.absent(),
+            Value<double> minLng = const Value.absent(),
+            Value<double> maxLng = const Value.absent(),
             Value<bool> isOfficial = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -2901,6 +3113,10 @@ class $$TrailsTableTableManager extends RootTableManager<
             elevationGain: elevationGain,
             difficulty: difficulty,
             summitIndex: summitIndex,
+            minLat: minLat,
+            maxLat: maxLat,
+            minLng: minLng,
+            maxLng: maxLng,
             isOfficial: isOfficial,
             rowid: rowid,
           ),

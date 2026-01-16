@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'dart:ui';
 import 'dart:math' as math;
 import '../../../logic/deviation_engine.dart';
 import '../../../logic/eta_engine.dart';
 import '../../../../../data/local/db/app_database.dart';
 import '../../../../../data/local/db/converters.dart';
+import '../../../../../core/utils/geo_math.dart';
 import '../elevation_panel.dart';
 import '../atoms/stat_card.dart';
 import '../atoms/survival_card.dart';
@@ -187,8 +188,7 @@ class _NavigationSheetState extends State<NavigationSheet> {
 
       for (int i = 0; i < points.length; i++) {
         final p = points[i];
-        final d =
-            const Distance().as(LengthUnit.Meter, u, LatLng(p.lat, p.lng));
+        final d = GeoMath.distanceMeters(u, LatLng(p.lat, p.lng));
         if (d < minD) {
           minD = d;
           closestIndex = i;

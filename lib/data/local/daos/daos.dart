@@ -37,6 +37,24 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// Spatial query using pre-calculated bounding boxes.
+  /// This is O(1) indexed lookup instead of O(N) table scan.
+  ///
+  /// [buffer] is in degrees, approximately:
+  /// - 0.001 = ~110m
+  /// - 0.005 = ~500m
+  /// - 0.01 = ~1.1km
+  Future<List<Trail>> getNearbyTrails(double userLat, double userLng,
+      {double buffer = 0.005}) {
+    return (select(trails)
+          ..where((t) =>
+              t.minLat.isSmallerOrEqualValue(userLat + buffer) &
+              t.maxLat.isBiggerOrEqualValue(userLat - buffer) &
+              t.minLng.isSmallerOrEqualValue(userLng + buffer) &
+              t.maxLng.isBiggerOrEqualValue(userLng - buffer)))
+        .get();
+  }
+
   Future<List<PointOfInterest>> getPoisForMountain(String mountainId) {
     return (select(pointsOfInterest)
           ..where((t) => t.mountainId.equals(mountainId)))

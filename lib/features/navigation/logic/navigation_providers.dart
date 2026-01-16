@@ -1,19 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/local/db/app_database.dart';
 import 'deviation_engine.dart';
 import 'gps_state_machine.dart';
-import 'map_package_manager.dart';
 import '../../../core/services/track_loader_service.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
   return AppDatabase();
-});
-
-final mapPackageManagerProvider = Provider<MapPackageManager>((ref) {
-  return MapPackageManager(ref.watch(databaseProvider));
 });
 
 final trackLoaderProvider = Provider<TrackLoaderService>((ref) {

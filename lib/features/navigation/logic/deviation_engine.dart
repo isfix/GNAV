@@ -1,4 +1,4 @@
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/local/db/converters.dart';
 import '../../../core/utils/geo_math.dart';
 import '../../../data/local/db/app_database.dart'; // For Trail entity

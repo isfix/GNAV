@@ -7,7 +7,6 @@ class MapSideControls extends StatelessWidget {
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onCenter;
-  final VoidCallback onCenter;
   final VoidCallback onLayer;
   final VoidCallback onLoadRoute;
 

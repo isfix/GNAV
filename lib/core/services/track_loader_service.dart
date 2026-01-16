@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:gpx/gpx.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:latlong2/latlong.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
+import '../utils/geo_math.dart';
 
 class TrackLoaderService {
   final AppDatabase _db;
@@ -36,7 +37,6 @@ class TrackLoaderService {
       int summitIndex = 0;
 
       final dbPoints = <TrailPoint>[];
-      const distanceCalc = Distance();
 
       for (int i = 0; i < points.length; i++) {
         final p = points[i];
@@ -54,9 +54,7 @@ class TrackLoaderService {
         // Stats
         if (i > 0) {
           final prev = points[i - 1];
-          final d = distanceCalc.as(
-              LengthUnit.Meter,
-              LatLng(prev.lat ?? 0, prev.lon ?? 0),
+          final d = GeoMath.distanceMeters(LatLng(prev.lat ?? 0, prev.lon ?? 0),
               LatLng(p.lat ?? 0, p.lon ?? 0));
           totalDist += d;
 
