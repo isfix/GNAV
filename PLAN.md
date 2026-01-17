@@ -1,81 +1,66 @@
-CONTEXT: We are upgrading the "PANDU" map experience. Currently, the map shows trails, but users cannot click on "Mountain" or "Basecamp" icons to get info. I need you to implement clickable markers and the logic to auto-select trails.
+CONTEXT: The user is now using gpx.studio to manage map data. They will provide a single GPX file that contains:
 
-YOUR OBJECTIVE:
+Tracks (<trk>): The hiking route (Polyline).
 
-Render Mountains and Basecamps as clickable icons on the MapLibre map.
+Waypoints (<wpt>): Important locations like "Basecamp Selo", "Pos 1", "Summit", etc.
 
-Implement the interaction flow:
+YOUR OBJECTIVE: Upgrade TrackLoaderService to parse both Tracks and Waypoints from the same GPX file and insert them into the Trails and PointsOfInterest tables respectively. You must also apply "Smart Tagging" to categorize waypoints based on their names.
 
-Tap Mountain: Show MountainDetailSheet (Stats, Info, List of Basecamps).
+TASK 1: Upgrade TrackLoaderService (The Universal Loader)
 
-Tap Basecamp: Show BasecampPreviewSheet with a "Start Hike" button.
-
-Implement "Auto-Trail Selection": When "Start Hike" is tapped, find the trail starting at that basecamp and draw it.
-
-TASK 1: Update MapLayerService (Visualization)
-
-File: lib/core/services/map_layer_service.dart
+File: lib/core/services/track_loader_service.dart
 
 Instructions:
 
-Add drawMountainMarkers(): Fetch all MountainRegions. Create a GeoJSON Source + SymbolLayer (ID: layer_mountain_markers). Use a mountain icon. Put the id in properties.
+Refactor loadGpxTrack (or create loadFullGpxData) to accept String assetPath, String mountainId, String trailId.
 
-Add drawBasecampMarkers(): Fetch all PointsOfInterest where type == PoiType.basecamp. Create a Source + SymbolLayer (ID: layer_basecamp_markers). Use a tent/house icon. Put the id in properties.
+Step A: Process Tracks (gpx.trks)
 
-Ensure these are called in the drawMapLayers sequence.
+(Keep existing logic) Parse points, calculate distance/elevation.
 
-TASK 2: Implement "Smart Trail Finder" (Logic)
+(New) Calculate minLat, maxLat, minLng, maxLng for the spatial index.
 
-File: lib/data/local/daos/daos.dart (NavigationDao)
+Insert into Trails table.
 
-Instructions:
+Step B: Process Waypoints (gpx.wpts)
 
-Add a method: Future<Trail?> getTrailForBasecamp(PointOfInterest basecamp).
+Iterate through gpx.wpts.
 
-Logic:
+Smart Tagging Heuristic: Check the wpt.name:
 
-Fetch all trails for basecamp.mountainId.
+If name contains "Basecamp" or "Pos Pendakian" -> Set type = PoiType.basecamp.
 
-Iterate through trails. Decode the first point of the geometryJson.
+If name contains "Summit", "Puncak", "Top" -> Set type = PoiType.summit.
 
-Calculate distance between basecamp location and trail start point.
+If name contains "Water", "Sumber Air" -> Set type = PoiType.water.
 
-Return the trail if distance < 500m (nearest match).
+Default -> Set type = PoiType.shelter (covers Viewpoints/Pos).
 
-TASK 3: Create UI Sheets (Presentation)
+Create PointsOfInterestCompanion using the waypoint's lat, lon, ele, and name.
 
-New File: lib/features/navigation/presentation/widgets/sheets/mountain_detail_sheet.dart
+Insert into PointsOfInterest table.
 
-Show Mountain Name, Height (if available), Status.
+TASK 2: Update SeedingService
 
-List available Basecamps (clickable -> closes sheet, zooms to basecamp).
-
-New File: lib/features/navigation/presentation/widgets/sheets/basecamp_preview_sheet.dart
-
-Show Basecamp Name.
-
-Primary Button: "Start Hike Here".
-
-Action: On press, call the "Smart Trail Finder" from Task 2. If a trail is found, set it as the active trail in the provider and close the sheet.
-
-TASK 4: Handle Map Interactions (Wiring)
-
-File: lib/features/navigation/presentation/offline_map_screen.dart
+File: lib/core/services/seeding_service.dart
 
 Instructions:
 
-In onMapCreated (or style loaded), setup onFeatureClick listener.
+Update seedMerbabu (and others) to remove the manually coded POIs (_bc(...), _poi(...)).
 
-Check feature.id or layer ID.
+Instead, just call the loader:
 
-If layer is layer_mountain_markers -> Fetch ID -> Show MountainDetailSheet.
+Dart
 
-If layer is layer_basecamp_markers -> Fetch ID -> Show BasecampPreviewSheet.
+await _trackLoader.loadFullGpxData(
+  'assets/tracks/merbabu/selo.gpx', 
+  'merbabu', 
+  'merbabu_selo'
+);
+Note: This assumes selo.gpx now contains the Basecamp and Summit points inside it.
 
-CONSTRAINTS:
+TASK 3: Constraints & Edge Cases
 
-Use showModalBottomSheet for the sheets.
+Ensure the PointsOfInterest ID is generated uniquely (e.g., "${mountainId}_${wpt.name.replaceAll(' ', '_')}").
 
-Ensure the "Start Hike" action immediately draws the polyline for the found trail (use the existing mapLayerService.drawTrail or similar logic).
-
-Handle the case where no trail matches the basecamp (show a SnackBar: "No mapped trail found for this basecamp").
+Handle case-insensitive string matching for the Smart Tagging (e.g., "basecamp" vs "Basecamp").

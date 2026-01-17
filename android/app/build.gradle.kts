@@ -48,8 +48,9 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
     // GraphHopper Routing Engine
+    // Only graphhopper-core is needed for loading pre-processed graphs
+    // reader-osm is NOT needed since we don't import OSM on the device
     implementation("com.graphhopper:graphhopper-core:8.0")
-    implementation("com.graphhopper:graphhopper-reader-osm:8.0")
     implementation("org.slf4j:slf4j-android:1.7.36")
 }
 

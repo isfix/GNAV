@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
+import 'track_loader_service.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/navigation/logic/navigation_providers.dart';
@@ -12,8 +14,11 @@ final seedingServiceProvider = Provider<SeedingService>((ref) {
 
 class SeedingService {
   final AppDatabase db;
+  late final TrackLoaderService _trackLoader;
 
-  SeedingService(this.db);
+  SeedingService(this.db) {
+    _trackLoader = TrackLoaderService(db);
+  }
 
   /// Creates a TrailsCompanion with calculated bounding box
   /// This enables O(1) spatial lookups instead of O(N) scans
@@ -180,6 +185,7 @@ class SeedingService {
   }
 
   /// 1. Mount Merbabu (Central Java)
+  /// Now uses GPX files from assets/gpx/merbabu/ for trail data
   Future<void> seedMerbabu() async {
     await db.into(db.mountainRegions).insertOnConflictUpdate(
           const MountainRegionsCompanion(
@@ -194,50 +200,39 @@ class SeedingService {
           ),
         );
 
-    final seloRoute = [
-      const TrailPoint(-7.4526, 110.4422, 1800), // Basecamp
-      const TrailPoint(-7.4530, 110.4430, 1900),
-      const TrailPoint(-7.4540, 110.4445, 2150), // Pos 1
-      const TrailPoint(-7.4550, 110.4455, 2400), // Pos 2
-      const TrailPoint(-7.4560, 110.4460, 2600), // Sabana 1
-      const TrailPoint(-7.4580, 110.4470, 3145), // Summit
-    ];
+    // Load trail and POI data from GPX files
+    await loadMerbabuGpxTrails();
+  }
 
-    await db.into(db.trails).insertOnConflictUpdate(
-          _createTrailWithBounds(
-            id: 'merbabu_selo',
-            mountainId: 'merbabu',
-            name: 'Jalur Selo',
-            points: seloRoute,
-            difficulty: 3,
-          ),
-        );
+  /// Loads all Merbabu trails from GPX files in assets/gpx/merbabu/
+  /// This parses both tracks (trail geometry) and waypoints (basecamps, POIs)
+  Future<void> loadMerbabuGpxTrails() async {
+    const gpxFiles = {
+      'Selo': 'assets/gpx/merbabu/Selo.gpx',
+      'Wekas': 'assets/gpx/merbabu/Wekas.gpx',
+      'Suwanting': 'assets/gpx/merbabu/Suwanting.gpx',
+      'Thekelan': 'assets/gpx/merbabu/Thekelan.gpx',
+      'Cuntel': 'assets/gpx/merbabu/Cuntel.gpx',
+      'Gancik': 'assets/gpx/merbabu/Gancik.gpx',
+      'Grenden': 'assets/gpx/merbabu/Grenden.gpx',
+    };
 
-    await db.into(db.pointsOfInterest).insertOnConflictUpdate(
-          const PointsOfInterestCompanion(
-            id: Value('merbabu_pos1'),
-            mountainId: Value('merbabu'),
-            name: Value('Pos 1'),
-            type: Value(PoiType.shelter),
-            lat: Value(-7.4540),
-            lng: Value(110.4445),
-            elevation: Value(2000),
-            metadataJson: Value('{"desc": "Shelter point"}'),
-          ),
-        );
+    for (final entry in gpxFiles.entries) {
+      final trailName = entry.key;
+      final assetPath = entry.value;
+      final trailId = 'merbabu_${trailName.toLowerCase()}';
 
-    // Seed Basecamps for Merbabu
-    await db.into(db.pointsOfInterest).insertOnConflictUpdate(
-          const PointsOfInterestCompanion(
-            id: Value('merbabu_selo_bc'),
-            mountainId: Value('merbabu'),
-            name: Value('Basecamp Selo'),
-            type: Value(PoiType.basecamp),
-            lat: Value(-7.4526),
-            lng: Value(110.4422),
-            elevation: Value(1600),
-          ),
+      try {
+        await _trackLoader.loadFullGpxData(
+          assetPath,
+          'merbabu',
+          trailId,
         );
+        debugPrint('[Seeding] Loaded Merbabu trail: $trailName');
+      } catch (e) {
+        debugPrint('[Seeding] Error loading $trailName: $e');
+      }
+    }
   }
 
   /// 2. Mount Rinjani (Lombok)

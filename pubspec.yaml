@@ -17,7 +17,7 @@ dependencies:
   json_annotation: ^4.8.1
 
   # Map Engine (MapLibre - Corporate Grade)
-  maplibre_gl: ^0.20.0
+  maplibre_gl: ^0.25.0
 
   # Local Persistence
   drift: ^2.15.0
@@ -64,4 +64,5 @@ flutter:
     - assets/map_styles/
     - assets/map_data/
     - assets/graph_cache/
+    - assets/gpx/merbabu/
 
