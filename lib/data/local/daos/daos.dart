@@ -120,41 +120,73 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
   /// 2. Find trail whose first point is within 500m of basecamp
   /// 3. Return the nearest match
   Future<Trail?> getTrailForBasecamp(PointOfInterest basecamp) async {
-    // Get trails near this basecamp (approx 0.006 degrees buffer ~ 660m)
-    // This pre-filters trails using O(1) indexed bounding box lookup
-    final mountainTrails = await getTrailsNearBasecamp(
-        basecamp.mountainId, basecamp.lat, basecamp.lng, 0.006);
-    if (mountainTrails.isEmpty) return null;
+    const buffer = 0.006;
+    const maxDistance = 500.0 * 500.0;
 
-    Trail? nearestTrail;
+    // Optimized query: Select only ID and start point
+    // This avoids deserializing the heavy geometryJson column for every candidate
+    final query = selectOnly(trails)
+      ..addColumns([trails.id, trails.startLat, trails.startLng])
+      ..where(trails.mountainId.equals(basecamp.mountainId) &
+          trails.minLat.isSmallerOrEqualValue(basecamp.lat + buffer) &
+          trails.maxLat.isBiggerOrEqualValue(basecamp.lat - buffer) &
+          trails.minLng.isSmallerOrEqualValue(basecamp.lng + buffer) &
+          trails.maxLng.isBiggerOrEqualValue(basecamp.lng - buffer));
+
+    final rows = await query.get();
+    if (rows.isEmpty) return null;
+
+    String? bestTrailId;
     double minDistance = double.infinity;
+    final idsToFetchFull = <String>[];
 
-    for (final trail in mountainTrails) {
-      final geometry = trail.geometryJson;
-      if (geometry.isEmpty) continue;
+    for (final row in rows) {
+      final startLat = row.read(trails.startLat);
+      final startLng = row.read(trails.startLng);
+      final id = row.read(trails.id)!;
 
-      // Get first point of trail
-      final firstPoint = geometry.first;
-      final trailStartLat = firstPoint.lat;
-      final trailStartLng = firstPoint.lng;
+      if (startLat != null && startLng != null) {
+        // Fast path: Use indexed columns
+        final dLat = (startLat - basecamp.lat) * 111320;
+        final dLng = (startLng - basecamp.lng) * 111320 * 0.85;
+        final dist = dLat * dLat + dLng * dLng;
 
-      // Calculate approximate distance (Haversine simplified)
-      final dLat = (trailStartLat - basecamp.lat) * 111320; // meters per degree
-      final dLng = (trailStartLng - basecamp.lng) *
-          111320 *
-          0.85; // approx at -7° latitude
-      final distance = (dLat * dLat + dLng * dLng);
-
-      // 500m threshold (in squared meters to avoid sqrt)
-      const maxDistance = 500.0 * 500.0;
-
-      if (distance < maxDistance && distance < minDistance) {
-        minDistance = distance;
-        nearestTrail = trail;
+        if (dist < maxDistance && dist < minDistance) {
+          minDistance = dist;
+          bestTrailId = id;
+        }
+      } else {
+        // Fallback: Data not migrated or populated, must fetch full entity
+        idsToFetchFull.add(id);
       }
     }
 
-    return nearestTrail;
+    // Process fallback for legacy data (if any)
+    if (idsToFetchFull.isNotEmpty) {
+      final fullTrails =
+          await (select(trails)..where((t) => t.id.isIn(idsToFetchFull))).get();
+      for (final trail in fullTrails) {
+        final geometry = trail.geometryJson;
+        if (geometry.isEmpty) continue;
+        final firstPoint = geometry.first;
+
+        final dLat = (firstPoint.lat - basecamp.lat) * 111320;
+        final dLng = (firstPoint.lng - basecamp.lng) * 111320 * 0.85;
+        final dist = dLat * dLat + dLng * dLng;
+
+        if (dist < maxDistance && dist < minDistance) {
+          minDistance = dist;
+          bestTrailId = trail.id;
+        }
+      }
+    }
+
+    if (bestTrailId != null) {
+      return (select(trails)..where((t) => t.id.equals(bestTrailId!)))
+          .getSingle();
+    }
+
+    return null;
   }
 }
 

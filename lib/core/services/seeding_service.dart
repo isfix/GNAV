@@ -95,6 +95,8 @@ class SeedingService {
       maxLat: Value(maxLat.isFinite ? maxLat : 0),
       minLng: Value(minLng.isFinite ? minLng : 0),
       maxLng: Value(maxLng.isFinite ? maxLng : 0),
+      startLat: Value(points.isNotEmpty ? points.first.lat : null),
+      startLng: Value(points.isNotEmpty ? points.first.lng : null),
     );
   }
 

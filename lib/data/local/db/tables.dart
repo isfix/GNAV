@@ -44,6 +44,10 @@ class Trails extends Table {
   RealColumn get minLng => real().withDefault(const Constant(0.0))();
   RealColumn get maxLng => real().withDefault(const Constant(0.0))();
 
+  // Optimization for "Nearest Trail" queries (avoids parsing JSON)
+  RealColumn get startLat => real().nullable()();
+  RealColumn get startLng => real().nullable()();
+
   BoolColumn get isOfficial => boolean().withDefault(const Constant(true))();
 
   @override

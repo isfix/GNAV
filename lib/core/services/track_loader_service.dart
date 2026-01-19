@@ -136,6 +136,8 @@ class TrackLoaderService {
       maxLat: drift.Value(maxLat),
       minLng: drift.Value(minLng),
       maxLng: drift.Value(maxLng),
+      startLat: drift.Value(dbPoints.isNotEmpty ? dbPoints.first.lat : null),
+      startLng: drift.Value(dbPoints.isNotEmpty ? dbPoints.first.lng : null),
     );
 
     await _db.navigationDao.insertTrail(trailEntry);
