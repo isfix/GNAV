@@ -437,31 +437,32 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   /// Draws all map layers after style is loaded
   Future<void> _drawMapLayers() async {
     final activeMountainId = ref.read(activeMountainIdProvider);
-
-    // Draw trails
-    final trailsAsync = await ref.read(
-      activeTrailsProvider(activeMountainId).future,
-    );
-    mapLayerService.drawTrails(trailsAsync);
-
-    // Draw danger zones
-    final dangerZones = ref.read(dangerZonesProvider);
-    mapLayerService.drawDangerZones(dangerZones);
-
-    // Draw backtrack if available
-    final backtrackPath = ref.read(backtrackPathProvider);
-    mapLayerService.drawBacktrackPath(backtrackPath);
-
-    // Get all data for markers
-    final regions = await ref.read(allMountainsProvider.future);
     final db = ref.read(databaseProvider);
-    final basecamps = await db.navigationDao.getAllBasecamps();
 
-    // Draw clickable mountain markers (GeoJSON layer with feature IDs)
-    await mapLayerService.drawMountainMarkers(regions);
+    // 1. Fetch all async data concurrently
+    final results = await Future.wait([
+      ref.read(activeTrailsProvider(activeMountainId).future),
+      ref.read(allMountainsProvider.future),
+      db.navigationDao.getAllBasecamps(),
+    ]);
 
-    // Draw clickable basecamp markers (GeoJSON layer with feature IDs)
-    await mapLayerService.drawBasecampMarkers(basecamps);
+    // Extract results
+    final trails = results[0] as List<Trail>;
+    final regions = results[1] as List<MountainRegion>;
+    final basecamps = results[2] as List<PointOfInterest>;
+
+    // 2. Get synchronous data
+    final dangerZones = ref.read(dangerZonesProvider);
+    final backtrackPath = ref.read(backtrackPathProvider);
+
+    // 3. Draw all layers concurrently
+    await Future.wait([
+      mapLayerService.drawTrails(trails),
+      mapLayerService.drawDangerZones(dangerZones),
+      mapLayerService.drawBacktrackPath(backtrackPath),
+      mapLayerService.drawMountainMarkers(regions),
+      mapLayerService.drawBasecampMarkers(basecamps),
+    ]);
 
     debugPrint(
         '[MAP] Drew ${regions.length} mountains, ${basecamps.length} basecamps');
