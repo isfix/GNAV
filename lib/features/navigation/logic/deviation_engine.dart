@@ -41,8 +41,7 @@ class DeviationEngine {
       }
 
       // 2. Detailed Segment Check (only runs for nearby trails)
-      // Cast to handle stale generated code
-      final points = (trail.geometryJson as List).cast<TrailPoint>();
+      final points = trail.geometryJson;
       for (int i = 0; i < points.length - 1; i++) {
         final p1 = points[i];
         final p2 = points[i + 1];
@@ -95,7 +94,7 @@ extension TrailBoundsExt on Trail {
     double minLng = 180.0;
     double maxLng = -180.0;
 
-    final points = (geometryJson as List).cast<TrailPoint>();
+    final points = geometryJson;
     for (final pt in points) {
       if (pt.lat < minLat) minLat = pt.lat;
       if (pt.lat > maxLat) maxLat = pt.lat;

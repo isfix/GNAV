@@ -20,8 +20,11 @@ final seedingServiceProvider = Provider<SeedingService>((ref) {
 class SeedingService {
   final AppDatabase db;
   late final TrackLoaderService _trackLoader;
+  final AssetBundle _bundle;
 
-  SeedingService(this.db, {TrackLoaderService? trackLoader}) {
+  SeedingService(this.db,
+      {TrackLoaderService? trackLoader, AssetBundle? bundle})
+      : _bundle = bundle ?? rootBundle {
     _trackLoader = trackLoader ?? TrackLoaderService(db);
   }
 
@@ -195,11 +198,11 @@ class SeedingService {
   Future<void> discoverAndSeedAssets() async {
     try {
       // 1. Load AssetManifest
-      final manifestContent = await rootBundle.loadString('AssetManifest.json');
-      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+      final manifest = await AssetManifest.loadFromAssetBundle(_bundle);
+      final assetList = manifest.listAssets();
 
       // 2. Discover MBTiles (Maps)
-      final mapFiles = manifestMap.keys
+      final mapFiles = assetList
           .where((key) =>
               key.startsWith('assets/map_data/') && key.endsWith('.mbtiles'))
           .toList();
@@ -212,7 +215,7 @@ class SeedingService {
 
       // 3. Discover GPX (Trails)
       // Expecting structure: assets/gpx/{mountainId}/*.gpx
-      final gpxFiles = manifestMap.keys
+      final gpxFiles = assetList
           .where((key) => key.startsWith('assets/gpx/') && key.endsWith('.gpx'))
           .toList();
 
@@ -247,6 +250,7 @@ class SeedingService {
               description: const Value('Offline map available'),
               isDownloaded: const Value(true),
               localMapPath: Value(localPath),
+              boundaryJson: const Value('{}'),
               // Default center, will be updated if GPX tracks are loaded
               lat: const Value(-7.5),
               lng: const Value(110.5),
@@ -292,7 +296,7 @@ class SeedingService {
 
       // Only copy if it doesn't exist to save startup time
       if (!await file.exists()) {
-        final data = await rootBundle.load(assetPath);
+        final data = await _bundle.load(assetPath);
         final bytes = data.buffer.asUint8List();
         await file.writeAsBytes(bytes, flush: true);
         debugPrint('[Seeding] Copied $filename to ${file.path}');
@@ -329,12 +333,12 @@ class SeedingService {
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
-          TrailsCompanion(
-            id: const Value('rinjani_sembalun'),
-            mountainId: const Value('rinjani'),
-            name: const Value('Jalur Sembalun'),
-            geometryJson: Value(rinjaniRoute),
-            difficulty: const Value(5),
+          _createTrailWithBounds(
+            id: 'rinjani_sembalun',
+            mountainId: 'rinjani',
+            name: 'Jalur Sembalun',
+            points: rinjaniRoute,
+            difficulty: 5,
           ),
         );
 
@@ -388,12 +392,12 @@ class SeedingService {
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
-          TrailsCompanion(
-            id: const Value('semeru_ranupani'),
-            mountainId: const Value('semeru'),
-            name: const Value('Jalur Ranu Pani'),
-            geometryJson: Value(ranuPaniRoute),
-            difficulty: const Value(5),
+          _createTrailWithBounds(
+            id: 'semeru_ranupani',
+            mountainId: 'semeru',
+            name: 'Jalur Ranu Pani',
+            points: ranuPaniRoute,
+            difficulty: 5,
           ),
         );
 
@@ -446,12 +450,12 @@ class SeedingService {
     ];
 
     await db.into(db.trails).insertOnConflictUpdate(
-          TrailsCompanion(
-            id: const Value('kerinci_kersik'),
-            mountainId: const Value('kerinci'),
-            name: const Value('Jalur Kersik Tuo'),
-            geometryJson: Value(kersikTuoRoute),
-            difficulty: const Value(5),
+          _createTrailWithBounds(
+            id: 'kerinci_kersik',
+            mountainId: 'kerinci',
+            name: 'Jalur Kersik Tuo',
+            points: kersikTuoRoute,
+            difficulty: 5,
           ),
         );
   }
@@ -478,12 +482,13 @@ class SeedingService {
       const TrailPoint(-7.2360, 109.2350, 2500), // Pos 5
       const TrailPoint(-7.2391, 109.2199, 3428), // Summit
     ];
-    await db.into(db.trails).insertOnConflictUpdate(TrailsCompanion(
-        id: const Value('slamet_bambangan'),
-        mountainId: const Value('slamet'),
-        name: const Value('Jalur Bambangan'),
-        geometryJson: Value(bambanganRoute),
-        difficulty: const Value(4)));
+    await db.into(db.trails).insertOnConflictUpdate(_createTrailWithBounds(
+      id: 'slamet_bambangan',
+      mountainId: 'slamet',
+      name: 'Jalur Bambangan',
+      points: bambanganRoute,
+      difficulty: 4,
+    ));
   }
 
   /// 6. Mount Sumbing
@@ -505,12 +510,13 @@ class SeedingService {
       const TrailPoint(-7.3320, 110.0380, 1400),
       const TrailPoint(-7.3840, 110.0750, 3371), // Summit
     ];
-    await db.into(db.trails).insertOnConflictUpdate(TrailsCompanion(
-        id: const Value('sumbing_garung'),
-        mountainId: const Value('sumbing'),
-        name: const Value('Jalur Garung'),
-        geometryJson: Value(garungRoute),
-        difficulty: const Value(4)));
+    await db.into(db.trails).insertOnConflictUpdate(_createTrailWithBounds(
+      id: 'sumbing_garung',
+      mountainId: 'sumbing',
+      name: 'Jalur Garung',
+      points: garungRoute,
+      difficulty: 4,
+    ));
   }
 
   /// 7. Mount Arjuno
@@ -530,12 +536,13 @@ class SeedingService {
       const TrailPoint(-7.6950, 112.6320, 800),
       const TrailPoint(-7.7656, 112.5800, 3339)
     ]; // Summit
-    await db.into(db.trails).insertOnConflictUpdate(TrailsCompanion(
-        id: const Value('arjuno_tretes'),
-        mountainId: const Value('arjuno'),
-        name: const Value('Jalur Tretes'),
-        geometryJson: Value(tretesRoute),
-        difficulty: const Value(4)));
+    await db.into(db.trails).insertOnConflictUpdate(_createTrailWithBounds(
+      id: 'arjuno_tretes',
+      mountainId: 'arjuno',
+      name: 'Jalur Tretes',
+      points: tretesRoute,
+      difficulty: 4,
+    ));
   }
 
   /// 8. Mount Raung
