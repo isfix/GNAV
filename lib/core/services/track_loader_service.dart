@@ -2,11 +2,17 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:gpx/gpx.dart';
+import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 import '../utils/geo_math.dart';
+
+/// Top-level function to ensure it can be run in a separate isolate.
+Gpx _parseGpx(String xmlString) {
+  return GpxReader().fromString(xmlString);
+}
 
 class TrackLoaderService {
   final AppDatabase _db;
@@ -29,7 +35,9 @@ class TrackLoaderService {
     try {
       // 1. Read & Parse GPX
       final xmlString = await rootBundle.loadString(assetPath);
-      final gpx = GpxReader().fromString(xmlString);
+      // GpxReader().fromString is a CPU-bound synchronous operation that can freeze the UI.
+      // We run it in a separate isolate to avoid blocking the main thread.
+      final gpx = await compute(_parseGpx, xmlString);
 
       // 2. Process Tracks -> Trails table
       if (gpx.trks.isNotEmpty) {
