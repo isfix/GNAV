@@ -62,12 +62,13 @@ class GlassContainer extends StatelessWidget {
 class CockpitHud extends StatelessWidget {
   final double altitude;
   final double bearing;
-  // TODO: Add speed or other stats
+  final double? speed;
 
   const CockpitHud({
     super.key,
     required this.altitude,
     required this.bearing,
+    this.speed,
   });
 
   @override
@@ -86,6 +87,11 @@ class CockpitHud extends StatelessWidget {
               const SizedBox(width: 24),
               _buildStat(
                   Icons.explore_outlined, "${bearing.toStringAsFixed(0)}°"),
+              if (speed != null) ...[
+                const SizedBox(width: 24),
+                _buildStat(
+                    Icons.speed, "${(speed! * 3.6).toStringAsFixed(1)} km/h"),
+              ],
             ],
           ),
         ),
