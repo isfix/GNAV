@@ -272,11 +272,85 @@ class MapLayerService {
 
   static const String mountainMarkerSourceId = 'source_mountain_markers';
   static const String mountainMarkerLayerId = 'layer_mountain_markers';
+  static const String mountainClusterLayerId = 'layer_mountain_clusters';
+  static const String mountainClusterCountLayerId =
+      'layer_mountain_cluster_count';
+
   static const String basecampMarkerSourceId = 'source_basecamp_markers';
   static const String basecampMarkerLayerId = 'layer_basecamp_markers';
+  static const String basecampClusterLayerId = 'layer_basecamp_clusters';
+  static const String basecampClusterCountLayerId =
+      'layer_basecamp_cluster_count';
 
   bool _mountainMarkersAdded = false;
   bool _basecampMarkersAdded = false;
+
+  /// Helper to add a clustered source and associated layers
+  Future<void> _addClusteredSource({
+    required String sourceId,
+    required Map<String, dynamic> geojson,
+    required String unclusteredLayerId,
+    required CircleLayerProperties unclusteredCircleProps,
+    required String unclusteredLabelLayerId,
+    required SymbolLayerProperties unclusteredLabelProps,
+    required String clusterLayerId,
+    required String clusterCountLayerId,
+    required String clusterColorHex,
+  }) async {
+    // Add Source with Cluster enabled
+    await _controller!.addSource(
+      sourceId,
+      GeojsonSource(
+        data: geojson,
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50,
+      ),
+    );
+
+    // 1. Cluster Circle Layer
+    await _controller!.addCircleLayer(
+      sourceId,
+      clusterLayerId,
+      CircleLayerProperties(
+        circleColor: clusterColorHex,
+        circleRadius: 18,
+        circleStrokeWidth: 2,
+        circleStrokeColor: '#ffffff',
+      ),
+      filter: ['has', 'point_count'],
+    );
+
+    // 2. Cluster Count Symbol Layer
+    await _controller!.addSymbolLayer(
+      sourceId,
+      clusterCountLayerId,
+      const SymbolLayerProperties(
+        textField: ['get', 'point_count_abbreviated'],
+        textSize: 12,
+        textColor: '#ffffff',
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
+      ),
+      filter: ['has', 'point_count'],
+    );
+
+    // 3. Unclustered Point Circle Layer
+    await _controller!.addCircleLayer(
+      sourceId,
+      unclusteredLayerId,
+      unclusteredCircleProps,
+      filter: ['!', ['has', 'point_count']],
+    );
+
+    // 4. Unclustered Point Label Layer
+    await _controller!.addSymbolLayer(
+      sourceId,
+      unclusteredLabelLayerId,
+      unclusteredLabelProps,
+      filter: ['!', ['has', 'point_count']],
+    );
+  }
 
   /// Draws mountain markers as clickable GeoJSON layer with circle + text
   Future<void> drawMountainMarkers(List<MountainRegion> mountains) async {
@@ -306,25 +380,18 @@ class MapLayerService {
       final geojson = {'type': 'FeatureCollection', 'features': features};
 
       if (!_mountainMarkersAdded) {
-        await _controller!.addGeoJsonSource(mountainMarkerSourceId, geojson);
-
-        // Circle layer for clickable markers (always renders)
-        await _controller!.addCircleLayer(
-          mountainMarkerSourceId,
-          mountainMarkerLayerId,
-          const CircleLayerProperties(
+        await _addClusteredSource(
+          sourceId: mountainMarkerSourceId,
+          geojson: geojson,
+          unclusteredLayerId: mountainMarkerLayerId,
+          unclusteredCircleProps: const CircleLayerProperties(
             circleRadius: 12,
             circleColor: '#2ecc40', // Green for mountains
             circleStrokeWidth: 3,
             circleStrokeColor: '#ffffff',
           ),
-        );
-
-        // Text layer for labels
-        await _controller!.addSymbolLayer(
-          mountainMarkerSourceId,
-          '${mountainMarkerLayerId}_labels',
-          const SymbolLayerProperties(
+          unclusteredLabelLayerId: '${mountainMarkerLayerId}_labels',
+          unclusteredLabelProps: const SymbolLayerProperties(
             textField: ['get', 'name'],
             textOffset: [0, 1.8],
             textSize: 13,
@@ -333,6 +400,9 @@ class MapLayerService {
             textHaloWidth: 2,
             textAllowOverlap: false,
           ),
+          clusterLayerId: mountainClusterLayerId,
+          clusterCountLayerId: mountainClusterCountLayerId,
+          clusterColorHex: '#2ecc40',
         );
 
         _mountainMarkersAdded = true;
@@ -375,25 +445,18 @@ class MapLayerService {
       final geojson = {'type': 'FeatureCollection', 'features': features};
 
       if (!_basecampMarkersAdded) {
-        await _controller!.addGeoJsonSource(basecampMarkerSourceId, geojson);
-
-        // Circle layer for clickable markers (always renders)
-        await _controller!.addCircleLayer(
-          basecampMarkerSourceId,
-          basecampMarkerLayerId,
-          const CircleLayerProperties(
+        await _addClusteredSource(
+          sourceId: basecampMarkerSourceId,
+          geojson: geojson,
+          unclusteredLayerId: basecampMarkerLayerId,
+          unclusteredCircleProps: const CircleLayerProperties(
             circleRadius: 10,
             circleColor: '#ff851b', // Orange for basecamps
             circleStrokeWidth: 2,
             circleStrokeColor: '#ffffff',
           ),
-        );
-
-        // Text layer for labels
-        await _controller!.addSymbolLayer(
-          basecampMarkerSourceId,
-          '${basecampMarkerLayerId}_labels',
-          const SymbolLayerProperties(
+          unclusteredLabelLayerId: '${basecampMarkerLayerId}_labels',
+          unclusteredLabelProps: const SymbolLayerProperties(
             textField: ['get', 'name'],
             textOffset: [0, 1.5],
             textSize: 11,
@@ -402,6 +465,9 @@ class MapLayerService {
             textHaloWidth: 1.5,
             textAllowOverlap: false,
           ),
+          clusterLayerId: basecampClusterLayerId,
+          clusterCountLayerId: basecampClusterCountLayerId,
+          clusterColorHex: '#ff851b',
         );
 
         _basecampMarkersAdded = true;
@@ -421,12 +487,18 @@ class MapLayerService {
 
     try {
       if (_mountainMarkersAdded) {
+        await _controller!.removeLayer('${mountainMarkerLayerId}_labels');
         await _controller!.removeLayer(mountainMarkerLayerId);
+        await _controller!.removeLayer(mountainClusterCountLayerId);
+        await _controller!.removeLayer(mountainClusterLayerId);
         await _controller!.removeSource(mountainMarkerSourceId);
         _mountainMarkersAdded = false;
       }
       if (_basecampMarkersAdded) {
+        await _controller!.removeLayer('${basecampMarkerLayerId}_labels');
         await _controller!.removeLayer(basecampMarkerLayerId);
+        await _controller!.removeLayer(basecampClusterCountLayerId);
+        await _controller!.removeLayer(basecampClusterLayerId);
         await _controller!.removeSource(basecampMarkerSourceId);
         _basecampMarkersAdded = false;
       }

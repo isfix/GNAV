@@ -498,7 +498,9 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         Point(screenPoint.x.toDouble(), screenPoint.y.toDouble()),
         [
           MapLayerService.mountainMarkerLayerId,
+          MapLayerService.mountainClusterLayerId,
           MapLayerService.basecampMarkerLayerId,
+          MapLayerService.basecampClusterLayerId,
         ],
         null,
       );
@@ -507,6 +509,18 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
       final feature = features.first;
       final properties = feature['properties'] as Map?;
+
+      // Check for cluster click
+      final isCluster = properties?['cluster'] == true;
+      if (isCluster) {
+        final currentZoom = _mapController!.cameraPosition?.zoom ?? 12;
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLngZoom(latLng, currentZoom + 2),
+          duration: const Duration(milliseconds: 300),
+        );
+        return;
+      }
+
       final featureType = properties?['type'] as String?;
 
       if (featureType == 'mountain') {
@@ -807,7 +821,6 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   }
 
   // --- Helpers ---
-  // TODO: PHASE 2 - Implement MapLibre-native helpers for POI symbols, Region clusters, etc.
 
   Widget _buildDevDrawer() {
     return Drawer(
