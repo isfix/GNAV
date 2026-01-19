@@ -1,7 +1,7 @@
 {
     "version": 8,
     "name": "PANDU Light Gray (Vector)",
-    "glyphs": "asset://assets/fonts/{fontstack}/{range}.pbf",
+    "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
     "sources": {
         "openmaptiles": {
             "type": "vector",

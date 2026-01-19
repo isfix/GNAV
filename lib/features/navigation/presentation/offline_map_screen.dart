@@ -24,8 +24,7 @@ import '../../../core/services/map_layer_service.dart';
 
 // WIDGET IMPORTS (REFACTORED)
 import 'widgets/atoms/off_trail_warning_badge.dart';
-import 'widgets/controls/map_search_bar.dart';
-import 'widgets/controls/map_side_controls.dart';
+import 'widgets/glass_hud.dart'; // NEW
 import 'widgets/controls/map_style_selector.dart';
 import 'widgets/sheets/navigation_sheet.dart';
 import 'widgets/sheets/search_overlay.dart';
@@ -72,6 +71,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
   // Search State
   bool _isSearching = false;
+  bool _isLocationPermissionGranted = false;
 
   // Selected trail for highlighting
   Trail? _selectedTrail;
@@ -191,6 +191,12 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     }
 
     if (permission == LocationPermission.deniedForever) return;
+
+    if (mounted) {
+      setState(() {
+        _isLocationPermissionGranted = true;
+      });
+    }
 
     final service = FlutterBackgroundService();
     if (!await service.isRunning()) {
@@ -880,26 +886,44 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   target: LatLng(-7.453, 110.448), // Mt. Merbabu
                   zoom: 12.0,
                 ),
-                myLocationEnabled: true,
-                compassEnabled: true,
+                myLocationEnabled: _isLocationPermissionGranted,
+                myLocationRenderMode: MyLocationRenderMode.compass,
+                myLocationTrackingMode: MyLocationTrackingMode.tracking,
                 onMapCreated: (controller) {
                   _mapController = controller;
                   mapLayerService.attach(controller);
                 },
                 onStyleLoadedCallback: () {
-                  // Draw layers once style is loaded
                   _drawMapLayers();
+                },
+                onUserLocationUpdated: (location) {
+                  // Optional: Update provider manually if needed
                 },
                 onMapClick: (point, latLng) => _handleMapTap(latLng),
                 onMapLongClick: (point, latLng) => _handleMapLongPress(latLng),
               ),
 
-            // 2. SEARCH BAR OR OVERLAY
+            // 2. HUD LAYER (Glassmorphism)
+            // Top Cockpit (Telemetry)
+            Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + 60),
+                child: CockpitHud(
+                  altitude: userLocAsync.value?.altitude ?? 0.0,
+                  bearing: compassHeading,
+                ),
+              ),
+            ),
+
+            // 3. SEARCH & ACTIONS
             if (_isSearching)
               Positioned.fill(
                 child: SearchOverlay(
                   onClose: () => setState(() => _isSearching = false),
                   onSelect: (region) {
+                    // ... existing logic ...
                     setState(() => _isSearching = false);
                     ref.read(activeMountainIdProvider.notifier).state =
                         region.id;
@@ -916,73 +940,85 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                 ),
               )
             else
+              // Search FAB (Glass)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 10,
-                left: 16,
-                right: 16,
-                child: GestureDetector(
+                right: 16, // Top right
+                child: GlassFab(
+                  icon: Icons.search,
                   onTap: () => setState(() => _isSearching = true),
-                  child: const MapSearchBar(enabled: false),
                 ),
               ),
 
-            // 3. OFF TRAIL WARNING
+            // 4. OFF TRAIL WARNING
             if (safetyStatus == SafetyStatus.danger)
               Positioned(
-                top: MediaQuery.of(context).padding.top + 140,
+                top: MediaQuery.of(context).padding.top + 10,
                 left: 0,
                 right: 0,
                 child: const Center(child: OffTrailWarningBadge()),
               ),
 
-            // 4. SIDE CONTROLS
+            // 5. SIDE CONTROLS (Glass Fabs)
             Positioned(
               right: 16,
-              bottom: 240, // Shifted up to avoid collision
-              child: MapSideControls(
-                onZoomIn: () {
-                  if (_mapController != null) {
-                    final currentZoom =
-                        _mapController!.cameraPosition?.zoom ?? 12;
-                    _mapController!.animateCamera(
-                      CameraUpdate.zoomTo(currentZoom + 1),
-                    );
-                  }
-                },
-                onZoomOut: () {
-                  if (_mapController != null) {
-                    final currentZoom =
-                        _mapController!.cameraPosition?.zoom ?? 12;
-                    _mapController!.animateCamera(
-                      CameraUpdate.zoomTo(currentZoom - 1),
-                    );
-                  }
-                },
-                onCenter: () {
-                  if (userLocAsync.value != null && _mapController != null) {
-                    _mapController!.animateCamera(
-                      CameraUpdate.newLatLngZoom(
-                        LatLng(
-                          userLocAsync.value!.lat,
-                          userLocAsync.value!.lng,
-                        ),
-                        15,
-                      ),
-                    );
-                  }
-                },
-                onLayer: () {
-                  showModalBottomSheet(
-                    context: context,
-                    backgroundColor: Colors.transparent,
-                    builder: (ctx) => const MapStyleSelector(),
-                  );
-                },
-                onLoadRoute: _showTrackSelectionDialog,
+              bottom: 240,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GlassFab(
+                    icon: Icons.layers_outlined,
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) => const MapStyleSelector(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  GlassFab(
+                    icon: Icons.add,
+                    onTap: () {
+                      _mapController?.animateCamera(CameraUpdate.zoomTo(
+                          (_mapController?.cameraPosition?.zoom ?? 12) + 1));
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  GlassFab(
+                    icon: Icons.remove,
+                    onTap: () {
+                      _mapController?.animateCamera(CameraUpdate.zoomTo(
+                          (_mapController?.cameraPosition?.zoom ?? 12) - 1));
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  GlassFab(
+                    icon: Icons.my_location,
+                    active: true, // Always show active color for primary action
+                    onTap: () {
+                      if (userLocAsync.value != null &&
+                          _mapController != null) {
+                        _mapController!.animateCamera(
+                          CameraUpdate.newLatLngZoom(
+                            LatLng(userLocAsync.value!.lat,
+                                userLocAsync.value!.lng),
+                            15,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  GlassFab(
+                    icon: Icons.directions_walk, // Route/Track load
+                    onTap: _showTrackSelectionDialog,
+                  ),
+                ],
               ),
             ),
 
-            // 5. BOTTOM SHEET
+            // 6. BOTTOM SHEET (Keep for now, maybe refactor later)
             NavigationSheet(
               status: safetyStatus,
               userLoc: userLocAsync.value,

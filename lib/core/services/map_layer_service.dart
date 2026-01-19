@@ -97,17 +97,34 @@ class MapLayerService {
       // Add or update regular trails source
       if (!_trailLayerAdded) {
         await _controller!.addGeoJsonSource(trailSourceId, regularGeoJson);
+
+        // 1. Trail Line Layer
         await _controller!.addLineLayer(
           trailSourceId,
           trailLayerId,
           LineLayerProperties(
-            lineColor: '#0df259',
+            lineColor: '#FF453A', // Premium Red-Orange
             lineWidth: 3.0,
             lineCap: 'round',
             lineJoin: 'round',
-            lineOpacity: highlightTrailId != null
-                ? 0.4
-                : 1.0, // Dim if there's a highlight
+            lineOpacity: highlightTrailId != null ? 0.3 : 0.9,
+          ),
+        );
+
+        // 2. Trail Label Layer (NEW)
+        await _controller!.addSymbolLayer(
+          trailSourceId,
+          'trail-label-layer',
+          const SymbolLayerProperties(
+            textField: ['get', 'name'],
+            symbolPlacement: 'line',
+            textAnchor: 'center',
+            textSize: 12,
+            textAllowOverlap: false,
+            textIgnorePlacement: false,
+            textColor: '#000000',
+            textHaloColor: '#ffffff',
+            textHaloWidth: 2,
           ),
         );
 
@@ -119,7 +136,7 @@ class MapLayerService {
             '${trailSourceId}_highlight',
             '${trailLayerId}_highlight',
             const LineLayerProperties(
-              lineColor: '#0df259',
+              lineColor: '#FF453A',
               lineWidth: 6.0,
               lineCap: 'round',
               lineJoin: 'round',
@@ -135,19 +152,7 @@ class MapLayerService {
             await _controller!.setGeoJsonSource(
                 '${trailSourceId}_highlight', highlightGeoJson);
           } catch (_) {
-            // Source doesn't exist yet, add it
-            await _controller!.addGeoJsonSource(
-                '${trailSourceId}_highlight', highlightGeoJson);
-            await _controller!.addLineLayer(
-              '${trailSourceId}_highlight',
-              '${trailLayerId}_highlight',
-              const LineLayerProperties(
-                lineColor: '#0df259',
-                lineWidth: 6.0,
-                lineCap: 'round',
-                lineJoin: 'round',
-              ),
-            );
+            // Fallback if cleaned up
           }
         }
       }
@@ -283,17 +288,31 @@ class MapLayerService {
 
       if (!_poiLayerAdded) {
         await _controller!.addGeoJsonSource(poiSourceId, geojson);
+
+        // 1. Circle Layer (The "Icon")
+        await _controller!.addCircleLayer(
+          poiSourceId,
+          'poi-circle-layer',
+          const CircleLayerProperties(
+            circleColor: '#ffffff',
+            circleRadius: 6,
+            circleStrokeWidth: 2,
+            circleStrokeColor: '#000000',
+          ),
+        );
+
+        // 2. Text Layer (The Label)
         await _controller!.addSymbolLayer(
           poiSourceId,
           poiLayerId,
           const SymbolLayerProperties(
-            iconImage: 'marker',
-            iconSize: 1.5,
             textField: ['get', 'name'],
-            textOffset: [0, 2],
-            textColor: '#ffffff',
-            textHaloColor: '#000000',
-            textHaloWidth: 1,
+            textSize: 11,
+            textOffset: [0, 1.5],
+            textAnchor: 'top',
+            textColor: '#000000',
+            textHaloColor: '#ffffff',
+            textHaloWidth: 1.5,
           ),
         );
         _poiLayerAdded = true;

@@ -61,14 +61,17 @@ class TrackCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      _buildStat(Icons.straighten, '$distanceKm km'),
-                      const SizedBox(width: 16),
-                      _buildStat(Icons.trending_up, '+$elevationM m'),
-                      const SizedBox(width: 16),
-                      _buildDifficultyIndicator(trail.difficulty),
-                    ],
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildStat(Icons.straighten, '$distanceKm km'),
+                        const SizedBox(width: 16),
+                        _buildStat(Icons.trending_up, '+$elevationM m'),
+                        const SizedBox(width: 16),
+                        _buildDifficultyIndicator(trail.difficulty),
+                      ],
+                    ),
                   ),
                 ],
               ),
