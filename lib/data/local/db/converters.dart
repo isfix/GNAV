@@ -32,10 +32,19 @@ class TrailPoint {
   final double lng;
   final double elevation;
 
-  const TrailPoint(this.lat, this.lng, this.elevation);
+  // Optimization: Store the raw list from DB/JSON to avoid re-allocation during map drawing
+  final List<dynamic>? _rawSource;
+
+  const TrailPoint(this.lat, this.lng, this.elevation) : _rawSource = null;
+
+  TrailPoint.fromChunk(this.lat, this.lng, this.elevation, this._rawSource);
 
   // Helper to convert to LatLng for Map display
   LatLng toLatLng() => LatLng(lat, lng);
+
+  // Return the raw list if available to avoid allocation
+  // GeoJSON uses [lng, lat, ele] order
+  List<dynamic> get coordinates => _rawSource ?? [lng, lat, elevation];
 }
 
 // Converter for List<TrailPoint> <-> JSON String [lng, lat, alt]
@@ -43,16 +52,17 @@ class GeoJsonConverter extends TypeConverter<List<TrailPoint>, String> {
   const GeoJsonConverter();
 
   @override
-  @override
   List<TrailPoint> fromSql(String fromDb) {
     final List<dynamic> jsonList = jsonDecode(fromDb);
     return jsonList.map((chunk) {
       // Chunk: [lng, lat, alt] (GeoJSON standard + Z)
       // Fallback: [lng, lat] -> alt = 0
-      final lng = chunk[0] as double;
-      final lat = chunk[1] as double;
-      final alt = (chunk.length > 2) ? (chunk[2] as double) : 0.0;
-      return TrailPoint(lat, lng, alt);
+      final c = chunk as List;
+      final lng = (c[0] as num).toDouble();
+      final lat = (c[1] as num).toDouble();
+      final alt = (c.length > 2) ? (c[2] as num).toDouble() : 0.0;
+      // Pass the raw chunk list to TrailPoint to reuse it
+      return TrailPoint.fromChunk(lat, lng, alt, c);
     }).toList();
   }
 

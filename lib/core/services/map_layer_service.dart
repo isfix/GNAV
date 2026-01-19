@@ -119,7 +119,7 @@ class MapLayerService {
         if (points == null || points.isEmpty) continue;
 
         final coordinates = points
-            .map((p) => [p.lng, p.lat]) // GeoJSON uses [lng, lat]
+            .map((p) => p.coordinates)
             .toList();
 
         final feature = {
