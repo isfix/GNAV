@@ -42,12 +42,15 @@ class MapLayerService {
   }
 
   /// Draws trail polylines on the map
-  Future<void> drawTrails(List<Trail> trails) async {
+  /// If [highlightTrailId] is provided, that trail is drawn with a thicker, brighter line
+  Future<void> drawTrails(List<Trail> trails,
+      {String? highlightTrailId}) async {
     if (_controller == null || trails.isEmpty) return;
 
     try {
-      // Prepare GeoJSON features from trails
-      final features = <Map<String, dynamic>>[];
+      // Separate highlighted and regular trails
+      final regularFeatures = <Map<String, dynamic>>[];
+      final highlightFeatures = <Map<String, dynamic>>[];
 
       for (final trail in trails) {
         final points = trail.geometryJson as List<TrailPoint>?;
@@ -57,34 +60,91 @@ class MapLayerService {
             .map((p) => [p.lng, p.lat]) // GeoJSON uses [lng, lat]
             .toList();
 
-        features.add({
+        final feature = {
           'type': 'Feature',
           'properties': {
+            'id': trail.id,
             'name': trail.name,
             'difficulty': trail.difficulty ?? 3,
           },
           'geometry': {'type': 'LineString', 'coordinates': coordinates},
-        });
+        };
+
+        if (trail.id == highlightTrailId) {
+          highlightFeatures.add(feature);
+        } else {
+          regularFeatures.add(feature);
+        }
       }
 
-      final geojson = {'type': 'FeatureCollection', 'features': features};
+      // Regular trails (muted green)
+      final regularGeoJson = {
+        'type': 'FeatureCollection',
+        'features': regularFeatures
+      };
 
-      // Add or update source
+      // Highlighted trail (bright green, thicker)
+      final highlightGeoJson = {
+        'type': 'FeatureCollection',
+        'features': highlightFeatures
+      };
+
+      // Add or update regular trails source
       if (!_trailLayerAdded) {
-        await _controller!.addGeoJsonSource(trailSourceId, geojson);
+        await _controller!.addGeoJsonSource(trailSourceId, regularGeoJson);
         await _controller!.addLineLayer(
           trailSourceId,
           trailLayerId,
-          const LineLayerProperties(
+          LineLayerProperties(
             lineColor: '#0df259',
-            lineWidth: 4.0,
+            lineWidth: 3.0,
             lineCap: 'round',
             lineJoin: 'round',
+            lineOpacity: highlightTrailId != null
+                ? 0.4
+                : 1.0, // Dim if there's a highlight
           ),
         );
+
+        // Add highlighted trail layer (on top)
+        if (highlightFeatures.isNotEmpty) {
+          await _controller!
+              .addGeoJsonSource('${trailSourceId}_highlight', highlightGeoJson);
+          await _controller!.addLineLayer(
+            '${trailSourceId}_highlight',
+            '${trailLayerId}_highlight',
+            const LineLayerProperties(
+              lineColor: '#0df259',
+              lineWidth: 6.0,
+              lineCap: 'round',
+              lineJoin: 'round',
+            ),
+          );
+        }
+
         _trailLayerAdded = true;
       } else {
-        await _controller!.setGeoJsonSource(trailSourceId, geojson);
+        await _controller!.setGeoJsonSource(trailSourceId, regularGeoJson);
+        if (highlightFeatures.isNotEmpty) {
+          try {
+            await _controller!.setGeoJsonSource(
+                '${trailSourceId}_highlight', highlightGeoJson);
+          } catch (_) {
+            // Source doesn't exist yet, add it
+            await _controller!.addGeoJsonSource(
+                '${trailSourceId}_highlight', highlightGeoJson);
+            await _controller!.addLineLayer(
+              '${trailSourceId}_highlight',
+              '${trailLayerId}_highlight',
+              const LineLayerProperties(
+                lineColor: '#0df259',
+                lineWidth: 6.0,
+                lineCap: 'round',
+                lineJoin: 'round',
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
       debugPrint('Error drawing trails: $e');

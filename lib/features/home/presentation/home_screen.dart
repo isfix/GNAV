@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:ui';
+import 'package:go_router/go_router.dart';
 import '../../navigation/logic/navigation_providers.dart';
 import '../../../data/local/db/app_database.dart';
 import 'widgets/mountain_card.dart';
@@ -154,10 +154,6 @@ class HomeScreen extends ConsumerWidget {
 
   void _navigateToTrackSelection(
       BuildContext context, MountainRegion mountain) {
-    Navigator.pushNamed(
-      context,
-      '/tracks',
-      arguments: mountain,
-    );
+    context.push('/tracks', extra: mountain);
   }
 }

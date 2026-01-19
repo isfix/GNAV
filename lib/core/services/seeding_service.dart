@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:drift/drift.dart';
+import 'package:flutter/services.dart'; // for rootBundle
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 import 'track_loader_service.dart';
@@ -188,21 +191,48 @@ class SeedingService {
   /// 1. Mount Merbabu (Central Java)
   /// Now uses GPX files from assets/gpx/merbabu/ for trail data
   Future<void> seedMerbabu() async {
+    // 1. Copy MBTiles from asset to local storage
+    final mbtilesPath = await _copyAssetToLocal(
+      'assets/map_data/merbabu.mbtiles',
+      'merbabu.mbtiles',
+    );
+
     await db.into(db.mountainRegions).insertOnConflictUpdate(
-          const MountainRegionsCompanion(
-            id: Value('merbabu'),
-            name: Value('Mount Merbabu'),
-            description: Value(
+          MountainRegionsCompanion(
+            id: const Value('merbabu'),
+            name: const Value('Mount Merbabu'),
+            description: const Value(
                 'A lush dormant volcano in Central Java. Popular for its savannas.'),
-            boundaryJson: Value('{}'),
-            lat: Value(-7.4526), // Selo Basecamp
-            lng: Value(110.4422),
-            isDownloaded: Value(true),
+            boundaryJson: const Value('{}'),
+            lat: const Value(-7.4526), // Selo Basecamp
+            lng: const Value(110.4422),
+            isDownloaded: const Value(true),
+            localMapPath: Value(mbtilesPath), // Save local path
           ),
         );
 
     // Load trail and POI data from GPX files
     await loadMerbabuGpxTrails();
+  }
+
+  /// Helper to copy asset to local file system
+  Future<String> _copyAssetToLocal(String assetPath, String filename) async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/$filename');
+
+      // Only copy if it doesn't exist to save startup time
+      if (!await file.exists()) {
+        final data = await rootBundle.load(assetPath);
+        final bytes = data.buffer.asUint8List();
+        await file.writeAsBytes(bytes, flush: true);
+        debugPrint('[Seeding] Copied $filename to ${file.path}');
+      }
+      return file.path;
+    } catch (e) {
+      debugPrint('[Seeding] Error copying $filename: $e');
+      return '';
+    }
   }
 
   /// Loads all Merbabu trails from GPX files in assets/gpx/merbabu/

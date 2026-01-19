@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../data/local/db/app_database.dart';
 import '../../navigation/logic/navigation_providers.dart';
 import 'widgets/track_card.dart';
@@ -13,7 +14,7 @@ class TrackSelectionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final trailsAsync = ref.watch(activeTrailsProvider(mountain.id));
-    final basecampsAsync = ref.watch(basecampsProvider(mountain.id));
+    // Note: basecampsProvider available for future basecamp section
 
     return Scaffold(
       backgroundColor: const Color(0xFF0a0a0a),
@@ -168,10 +169,9 @@ class TrackSelectionScreen extends ConsumerWidget {
     // Set active mountain and trail
     ref.read(activeMountainIdProvider.notifier).state = mountain.id;
 
-    Navigator.pushNamed(
-      context,
+    context.push(
       '/map',
-      arguments: {
+      extra: {
         'mountain': mountain,
         'trail': trail,
       },

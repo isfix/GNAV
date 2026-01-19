@@ -27,9 +27,13 @@ final appRouter = GoRouter(
       path: '/map',
       builder: (context, state) {
         final args = state.extra as Map<String, dynamic>?;
-        // For now, pass the mountain and trail via the existing screen
-        // The screen will be updated to use these parameters
-        return const OfflineMapScreen();
+        final mountain = args?['mountain'] as MountainRegion?;
+        final trail = args?['trail'] as Trail?;
+
+        return OfflineMapScreen(
+          mountainId: mountain?.id,
+          trailId: trail?.id,
+        );
       },
     ),
   ],

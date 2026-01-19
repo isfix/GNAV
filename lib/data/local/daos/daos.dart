@@ -13,6 +13,10 @@ class MountainDao extends DatabaseAccessor<AppDatabase>
   Stream<List<MountainRegion>> watchAllRegions() =>
       select(mountainRegions).watch();
 
+  Future<MountainRegion?> getRegionById(String id) =>
+      (select(mountainRegions)..where((t) => t.id.equals(id)))
+          .getSingleOrNull();
+
   Future<List<MountainRegion>> getDownloadedRegions() =>
       (select(mountainRegions)..where((t) => t.isDownloaded.equals(true)))
           .get();

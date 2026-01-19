@@ -21,6 +21,7 @@ import '../logic/haptic_compass_controller.dart';
 import '../logic/deviation_engine.dart';
 import '../logic/backtrack_engine.dart';
 import '../../../core/utils/geo_math.dart';
+import '../../../core/utils/offline_map_style_helper.dart';
 import '../../../core/services/map_layer_service.dart';
 
 // WIDGET IMPORTS (REFACTORED)
@@ -40,7 +41,14 @@ import 'widgets/sheets/basecamp_preview_sheet.dart';
 // -----------------------------------------------------------------------------
 
 class OfflineMapScreen extends ConsumerStatefulWidget {
-  const OfflineMapScreen({super.key});
+  final String? mountainId;
+  final String? trailId;
+
+  const OfflineMapScreen({
+    super.key,
+    this.mountainId,
+    this.trailId,
+  });
 
   @override
   ConsumerState<OfflineMapScreen> createState() => _OfflineMapScreenState();
@@ -49,15 +57,15 @@ class OfflineMapScreen extends ConsumerStatefulWidget {
 class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   MapLibreMapController? _mapController;
 
+  // Dynamic style string (loaded from MBTiles)
+  String? _styleString;
+
   // Simulation State
   Timer? _simTimer;
   int _simIndex = 0;
   List<LatLng> _simPath = [];
   final List<UserBreadcrumbsCompanion> _simBreadcrumbBuffer = [];
   static const int _simBatchSize = 5;
-
-  // Background Service
-  final bool _isServiceRunning = false;
 
   // Haptics
   final _hapticController = HapticCompassController();
@@ -68,6 +76,9 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
   // Search State
   bool _isSearching = false;
+
+  // Selected trail for highlighting
+  Trail? _selectedTrail;
 
   @override
   void initState() {
@@ -80,21 +91,74 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     await ref.read(seedingServiceProvider).seedDiscoveryData();
 
     // 2. Seed Merbabu trails and basecamps from GPX files
-    // This loads actual coordinates for basecamps and trail geometry
     await ref.read(seedingServiceProvider).seedMerbabu();
 
-    // 3. Then check permissions for background service
+    // 3. Load selected trail if trailId was passed
+    if (widget.trailId != null) {
+      await _loadSelectedTrail();
+    }
+
+    // 4. Set active mountain from params
+    if (widget.mountainId != null) {
+      ref.read(activeMountainIdProvider.notifier).state = widget.mountainId!;
+    }
+
+    // 5. Load Map Style
+    await _loadMapStyle();
+
+    // 6. Then check permissions for background service
     _checkPermissions();
     _checkBatteryOptimizations();
 
-    // 4. Initialize Compass
+    // 7. Initialize Compass
     _compassSubscription = FlutterCompass.events?.listen((event) {
       if (mounted && event.heading != null) {
         _compassHeading.value = event.heading!;
-        // Haptic feedback if near target
-        // _hapticController.checkHeading(_compassHeading, targetBearing);
       }
     });
+  }
+
+  /// Load map style (Vector MBTiles or Online Fallback)
+  Future<void> _loadMapStyle() async {
+    final db = ref.read(databaseProvider);
+    final mountainId = widget.mountainId ?? 'merbabu';
+    final mountain = await db.mountainDao.getRegionById(mountainId);
+
+    String style;
+    if (mountain != null && mountain.localMapPath != null) {
+      // Offline mode: Inject MBTiles path
+      debugPrint(
+          '[Map] Loading offline style for ${mountain.name} at ${mountain.localMapPath}');
+      style =
+          await OfflineMapStyleHelper.getOfflineStyle(mountain.localMapPath!);
+    } else {
+      // Fallback: Use standard style (online tiles or bundled)
+      debugPrint('[Map] Loading default style (online fallback)');
+      style = 'asset://assets/map_styles/mapstyle.json';
+    }
+
+    if (mounted) {
+      setState(() {
+        _styleString = style;
+      });
+    }
+  }
+
+  /// Load the selected trail from database
+  Future<void> _loadSelectedTrail() async {
+    if (widget.trailId == null) return;
+
+    final db = ref.read(databaseProvider);
+    final trails = await db.navigationDao
+        .getTrailsForMountain(widget.mountainId ?? 'merbabu');
+
+    final selectedTrail =
+        trails.where((t) => t.id == widget.trailId).firstOrNull;
+    if (selectedTrail != null && mounted) {
+      setState(() {
+        _selectedTrail = selectedTrail;
+      });
+    }
   }
 
   Future<void> _checkBatteryOptimizations() async {
@@ -496,15 +560,36 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
     // 3. Draw all layers concurrently
     await Future.wait([
-      mapLayerService.drawTrails(trails),
+      mapLayerService.drawTrails(trails, highlightTrailId: _selectedTrail?.id),
       mapLayerService.drawDangerZones(dangerZones),
       mapLayerService.drawBacktrackPath(backtrackPath),
       mapLayerService.drawMountainMarkers(regions),
       mapLayerService.drawBasecampMarkers(basecamps),
     ]);
 
+    // 4. If we have a selected trail, zoom to fit it
+    if (_selectedTrail != null) {
+      _zoomToTrail(_selectedTrail!);
+    }
+
     debugPrint(
-        '[MAP] Drew ${regions.length} mountains, ${basecamps.length} basecamps');
+        '[MAP] Drew ${regions.length} mountains, ${basecamps.length} basecamps, selected: ${_selectedTrail?.name}');
+  }
+
+  /// Zoom the map to fit the selected trail bounds
+  void _zoomToTrail(Trail trail) {
+    if (_mapController == null) return;
+
+    // Use the trail's bounding box
+    final bounds = LatLngBounds(
+      southwest: LatLng(trail.minLat, trail.minLng),
+      northeast: LatLng(trail.maxLat, trail.maxLng),
+    );
+
+    _mapController!.animateCamera(
+      CameraUpdate.newLatLngBounds(bounds,
+          left: 50, top: 100, right: 50, bottom: 150),
+    );
   }
 
   /// Handles map taps to detect feature clicks on markers
@@ -715,25 +800,28 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         child: Stack(
           children: [
             // 1. MAP LAYER (MapLibre - PHASE 2)
-            MapLibreMap(
-              // Using local style - easy to swap themes
-              styleString: 'asset://assets/map_styles/mapstyle.json',
-              initialCameraPosition: const CameraPosition(
-                target: LatLng(-7.453, 110.448), // Mt. Merbabu
-                zoom: 12.0,
+            if (_styleString == null)
+              Container(color: const Color(0xFF1a1a1a)) // Loading placeholder
+            else
+              MapLibreMap(
+                // Using dynamic style string
+                styleString: _styleString!,
+                initialCameraPosition: const CameraPosition(
+                  target: LatLng(-7.453, 110.448), // Mt. Merbabu
+                  zoom: 12.0,
+                ),
+                myLocationEnabled: true,
+                compassEnabled: true,
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  mapLayerService.attach(controller);
+                },
+                onStyleLoadedCallback: () {
+                  // Draw layers once style is loaded
+                  _drawMapLayers();
+                },
+                onMapClick: (point, latLng) => _handleMapTap(latLng),
               ),
-              myLocationEnabled: true,
-              compassEnabled: true,
-              onMapCreated: (controller) {
-                _mapController = controller;
-                mapLayerService.attach(controller);
-              },
-              onStyleLoadedCallback: () {
-                // Draw layers once style is loaded
-                _drawMapLayers();
-              },
-              onMapClick: (point, latLng) => _handleMapTap(latLng),
-            ),
 
             // 2. SEARCH BAR OR OVERLAY
             if (_isSearching)
