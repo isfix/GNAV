@@ -43,6 +43,7 @@ dependencies:
   audioplayers: ^6.5.1
   sunrise_sunset_calc: ^3.0.0
   vibration: ^3.1.5
+  flutter_compass: ^0.8.0
   gpx: ^2.3.0
 
 dev_dependencies:

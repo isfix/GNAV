@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'dart:ui';
 import 'dart:math' as math;
@@ -41,6 +42,7 @@ class NavigationSheet extends StatefulWidget {
 
 class _NavigationSheetState extends State<NavigationSheet> {
   late PageController _pageController;
+  int _currentIndex = 1;
 
   @override
   void initState() {
@@ -88,6 +90,8 @@ class _NavigationSheetState extends State<NavigationSheet> {
                   Expanded(
                     child: PageView(
                       controller: _pageController,
+                      onPageChanged: (index) =>
+                          setState(() => _currentIndex = index),
                       children: [
                         _buildCompassPage(),
                         _buildDashboardPage(scrollController),
@@ -96,23 +100,33 @@ class _NavigationSheetState extends State<NavigationSheet> {
                     ),
                   ),
 
-                  // Indicators
+                  // Dashboard Slider (Segmented Control)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(3, (index) {
-                        // Simple indicator logic if we had state listening,
-                        // but for now simple dots or just skip
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.2)),
+                    padding: const EdgeInsets.only(bottom: 24, top: 8),
+                    child: CupertinoSlidingSegmentedControl<int>(
+                      backgroundColor: Colors.white.withOpacity(0.1),
+                      thumbColor: const Color(0xFF0df259),
+                      groupValue: _currentIndex,
+                      children: const {
+                        0: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Icon(Icons.explore, size: 20),
+                        ),
+                        1: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Icon(Icons.landscape, size: 20)),
+                        2: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 16),
+                            child: Icon(Icons.medical_services, size: 20)),
+                      },
+                      onValueChanged: (index) {
+                        setState(() => _currentIndex = index ?? 1);
+                        _pageController.animateToPage(
+                          index ?? 1,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
                         );
-                      }),
+                      },
                     ),
                   )
                 ],

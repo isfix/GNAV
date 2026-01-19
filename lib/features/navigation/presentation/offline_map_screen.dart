@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:math' show Point;
@@ -21,7 +22,6 @@ import '../logic/deviation_engine.dart';
 import '../logic/backtrack_engine.dart';
 import '../../../core/utils/geo_math.dart';
 import '../../../core/services/map_layer_service.dart';
-import '../../../core/services/routing_initialization_service.dart';
 
 // WIDGET IMPORTS (REFACTORED)
 import 'widgets/atoms/off_trail_warning_badge.dart';
@@ -60,6 +60,10 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   // Haptics
   final _hapticController = HapticCompassController();
 
+  // Compass State
+  double _compassHeading = 0.0;
+  StreamSubscription<CompassEvent>? _compassSubscription;
+
   // Search State
   bool _isSearching = false;
 
@@ -70,33 +74,27 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   }
 
   Future<void> _initializeApp() async {
-    // 1. ALWAYS seed discovery data first (no permission needed)
+    // 1. Seed discovery data (mountains registry)
     await ref.read(seedingServiceProvider).seedDiscoveryData();
 
-    // 2. Then check permissions for background service
+    // 2. Seed Merbabu trails and basecamps from GPX files
+    // This loads actual coordinates for basecamps and trail geometry
+    await ref.read(seedingServiceProvider).seedMerbabu();
+
+    // 3. Then check permissions for background service
     _checkPermissions();
     _checkBatteryOptimizations();
 
-    // 3. Initialize routing engine in background (async, don't await)
-    _initializeRoutingEngine();
-  }
-
-  Future<void> _initializeRoutingEngine() async {
-    await routingInitializationService.initialize(
-      onProgress: (status, progress) {
-        debugPrint('Routing: $status ($progress)');
-        // Optionally show status in UI
-      },
-    );
-    if (routingInitializationService.isReady && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Offline routing engine ready'),
-          backgroundColor: Color(0xFF0df259),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
+    // 4. Initialize Compass
+    _compassSubscription = FlutterCompass.events?.listen((event) {
+      if (mounted && event.heading != null) {
+        setState(() {
+          _compassHeading = event.heading!;
+        });
+        // Haptic feedback if near target
+        // _hapticController.checkHeading(_compassHeading, targetBearing);
+      }
+    });
   }
 
   Future<void> _checkBatteryOptimizations() async {
@@ -454,21 +452,19 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     final backtrackPath = ref.read(backtrackPathProvider);
     mapLayerService.drawBacktrackPath(backtrackPath);
 
-    // Add POI markers
-    final pois = await ref.read(activePoisProvider(activeMountainId).future);
-    mapLayerService.addPOIMarkers(pois);
-
-    // Add region markers
+    // Get all data for markers
     final regions = await ref.read(allMountainsProvider.future);
-    mapLayerService.addRegionMarkers(regions);
-
-    // Draw clickable mountain markers
-    mapLayerService.drawMountainMarkers(regions);
-
-    // Draw clickable basecamp markers
     final db = ref.read(databaseProvider);
     final basecamps = await db.navigationDao.getAllBasecamps();
-    mapLayerService.drawBasecampMarkers(basecamps);
+
+    // Draw clickable mountain markers (GeoJSON layer with feature IDs)
+    await mapLayerService.drawMountainMarkers(regions);
+
+    // Draw clickable basecamp markers (GeoJSON layer with feature IDs)
+    await mapLayerService.drawBasecampMarkers(basecamps);
+
+    debugPrint(
+        '[MAP] Drew ${regions.length} mountains, ${basecamps.length} basecamps');
   }
 
   /// Handles map taps to detect feature clicks on markers
@@ -624,6 +620,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   @override
   void dispose() {
     _simTimer?.cancel();
+    _compassSubscription?.cancel();
     mapLayerService.detach();
     super.dispose();
   }
@@ -664,7 +661,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           children: [
             // 1. MAP LAYER (MapLibre - PHASE 2)
             MapLibreMap(
-              styleString: 'asset://assets/map_styles/dark_mountain.json',
+              // Using OpenFreeMap style - reliable free vector tiles
+              styleString: 'https://tiles.openfreemap.org/styles/liberty',
               initialCameraPosition: const CameraPosition(
                 target: LatLng(-7.453, 110.448), // Mt. Merbabu
                 zoom: 12.0,
@@ -774,7 +772,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
             NavigationSheet(
               status: safetyStatus,
               userLoc: userLocAsync.value,
-              heading: compassHeading,
+              heading: _compassHeading,
               trail:
                   (trailsAsync.value != null && trailsAsync.value!.isNotEmpty)
                       ? trailsAsync.value!.first

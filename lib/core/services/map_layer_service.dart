@@ -248,7 +248,7 @@ class MapLayerService {
   bool _mountainMarkersAdded = false;
   bool _basecampMarkersAdded = false;
 
-  /// Draws mountain markers as clickable GeoJSON layer
+  /// Draws mountain markers as clickable GeoJSON layer with circle + text
   Future<void> drawMountainMarkers(List<MountainRegion> mountains) async {
     if (_controller == null || mountains.isEmpty) return;
 
@@ -260,7 +260,7 @@ class MapLayerService {
 
         features.add({
           'type': 'Feature',
-          'id': mountain.id, // CRITICAL: ID for click detection
+          'id': mountain.id,
           'properties': {
             'id': mountain.id,
             'name': mountain.name,
@@ -277,32 +277,46 @@ class MapLayerService {
 
       if (!_mountainMarkersAdded) {
         await _controller!.addGeoJsonSource(mountainMarkerSourceId, geojson);
-        await _controller!.addSymbolLayer(
+
+        // Circle layer for clickable markers (always renders)
+        await _controller!.addCircleLayer(
           mountainMarkerSourceId,
           mountainMarkerLayerId,
+          const CircleLayerProperties(
+            circleRadius: 12,
+            circleColor: '#2ecc40', // Green for mountains
+            circleStrokeWidth: 3,
+            circleStrokeColor: '#ffffff',
+          ),
+        );
+
+        // Text layer for labels
+        await _controller!.addSymbolLayer(
+          mountainMarkerSourceId,
+          '${mountainMarkerLayerId}_labels',
           const SymbolLayerProperties(
-            iconImage: 'mountain-15', // MapLibre Maki icon
-            iconSize: 1.8,
-            iconAllowOverlap: true,
             textField: ['get', 'name'],
-            textOffset: [0, 1.5],
-            textSize: 12,
+            textOffset: [0, 1.8],
+            textSize: 13,
             textColor: '#ffffff',
-            textHaloColor: '#333333',
-            textHaloWidth: 1.5,
+            textHaloColor: '#000000',
+            textHaloWidth: 2,
             textAllowOverlap: false,
           ),
         );
+
         _mountainMarkersAdded = true;
       } else {
         await _controller!.setGeoJsonSource(mountainMarkerSourceId, geojson);
       }
+
+      debugPrint('[MapLayer] Drew ${features.length} mountain markers');
     } catch (e) {
       debugPrint('Error drawing mountain markers: $e');
     }
   }
 
-  /// Draws basecamp markers as clickable GeoJSON layer
+  /// Draws basecamp markers as clickable GeoJSON layer with circle + text
   Future<void> drawBasecampMarkers(List<PointOfInterest> basecamps) async {
     if (_controller == null || basecamps.isEmpty) return;
 
@@ -312,7 +326,7 @@ class MapLayerService {
       for (final basecamp in basecamps) {
         features.add({
           'type': 'Feature',
-          'id': basecamp.id, // CRITICAL: ID for click detection
+          'id': basecamp.id,
           'properties': {
             'id': basecamp.id,
             'name': basecamp.name,
@@ -332,26 +346,40 @@ class MapLayerService {
 
       if (!_basecampMarkersAdded) {
         await _controller!.addGeoJsonSource(basecampMarkerSourceId, geojson);
-        await _controller!.addSymbolLayer(
+
+        // Circle layer for clickable markers (always renders)
+        await _controller!.addCircleLayer(
           basecampMarkerSourceId,
           basecampMarkerLayerId,
+          const CircleLayerProperties(
+            circleRadius: 10,
+            circleColor: '#ff851b', // Orange for basecamps
+            circleStrokeWidth: 2,
+            circleStrokeColor: '#ffffff',
+          ),
+        );
+
+        // Text layer for labels
+        await _controller!.addSymbolLayer(
+          basecampMarkerSourceId,
+          '${basecampMarkerLayerId}_labels',
           const SymbolLayerProperties(
-            iconImage: 'campsite-15', // MapLibre Maki tent icon
-            iconSize: 1.5,
-            iconAllowOverlap: true,
             textField: ['get', 'name'],
-            textOffset: [0, 1.2],
+            textOffset: [0, 1.5],
             textSize: 11,
-            textColor: '#ffc107',
-            textHaloColor: '#333333',
-            textHaloWidth: 1,
+            textColor: '#ffdc00',
+            textHaloColor: '#000000',
+            textHaloWidth: 1.5,
             textAllowOverlap: false,
           ),
         );
+
         _basecampMarkersAdded = true;
       } else {
         await _controller!.setGeoJsonSource(basecampMarkerSourceId, geojson);
       }
+
+      debugPrint('[MapLayer] Drew ${features.length} basecamp markers');
     } catch (e) {
       debugPrint('Error drawing basecamp markers: $e');
     }
