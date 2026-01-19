@@ -2,13 +2,20 @@ import 'package:collection/collection.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../../data/local/db/app_database.dart';
 import 'topology_builder.dart';
+import 'kd_tree.dart';
 
 class RoutingEngine {
   Map<String, RoutingNode> _graph = {};
+  KdTree? _spatialIndex;
 
   /// Rebuilds the graph from trails. Call this on mountain region change.
   void initializeGraph(List<Trail> trails) {
     _graph = TopologyBuilder.buildGraph(trails);
+    if (_graph.isNotEmpty) {
+      _spatialIndex = KdTree()..build(_graph.values.toList());
+    } else {
+      _spatialIndex = null;
+    }
   }
 
   /// Finds the shortest path between two points.
@@ -67,11 +74,21 @@ class RoutingEngine {
   }
 
   RoutingNode? _findNearestNode(LatLng point) {
+    if (_spatialIndex != null) {
+      final bestNode = _spatialIndex!.findNearest(point);
+      if (bestNode != null) {
+        final dist = TopologyBuilder.calculateDistance(
+            bestNode, RoutingNode('temp', point.latitude, point.longitude));
+        // Only snap if within reasonable distance (e.g. 1km)
+        if (dist <= 1000) return bestNode;
+      }
+      return null;
+    }
+
+    // Fallback for linear search if KdTree is somehow missing, though initializeGraph ensures it's set if graph not empty.
     RoutingNode? bestNode;
     double minDist = double.infinity;
 
-    // TODO: Use a Spatial Index (KdTree) for large graphs.
-    // For <5000 points, Iteration is acceptable (<5ms).
     for (final node in _graph.values) {
       final dist = TopologyBuilder.calculateDistance(
           node, RoutingNode('temp', point.latitude, point.longitude));
