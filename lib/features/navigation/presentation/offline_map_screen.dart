@@ -200,6 +200,31 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     if (!await service.isRunning()) {
       await initializeBackgroundService();
     }
+
+    // 8. Listen for Background Events (Safety Status)
+    service.on('safety_status').listen((event) {
+      if (event != null && mounted) {
+        final statusName = event['status'] as String?;
+        if (statusName != null) {
+          final status = SafetyStatus.values.firstWhere(
+            (e) => e.name == statusName,
+            orElse: () => SafetyStatus.safe,
+          );
+          ref.read(safetyStatusProvider.notifier).state = status;
+
+          if (status == SafetyStatus.danger) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:
+                    Text('DANGER: You are off-trail! Check map immediately.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      }
+    });
   }
 
   void _stopSimulation() {

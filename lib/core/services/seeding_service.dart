@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:drift/drift.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/services.dart'; // for rootBundle
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
@@ -188,31 +190,98 @@ class SeedingService {
     );
   }
 
-  /// 1. Mount Merbabu (Central Java)
-  /// Now uses GPX files from assets/gpx/merbabu/ for trail data
+  /// ROBUST ASSET DISCOVERY
+  /// Scans the asset bundle for MBTiles and GPX files and seeds them automatically.
+  Future<void> discoverAndSeedAssets() async {
+    try {
+      // 1. Load AssetManifest
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+
+      // 2. Discover MBTiles (Maps)
+      final mapFiles = manifestMap.keys
+          .where((key) =>
+              key.startsWith('assets/map_data/') && key.endsWith('.mbtiles'))
+          .toList();
+
+      debugPrint('[Seeding] Found ${mapFiles.length} map files');
+
+      for (final assetPath in mapFiles) {
+        await _seedMapAsset(assetPath);
+      }
+
+      // 3. Discover GPX (Trails)
+      // Expecting structure: assets/gpx/{mountainId}/*.gpx
+      final gpxFiles = manifestMap.keys
+          .where((key) => key.startsWith('assets/gpx/') && key.endsWith('.gpx'))
+          .toList();
+
+      debugPrint('[Seeding] Found ${gpxFiles.length} GPX files');
+
+      for (final assetPath in gpxFiles) {
+        await _seedGpxAsset(assetPath);
+      }
+    } catch (e) {
+      debugPrint('[Seeding] Discovery failed: $e');
+    }
+  }
+
+  Future<void> _seedMapAsset(String assetPath) async {
+    try {
+      // assetPath: assets/map_data/merbabu.mbtiles
+      final filename = p.basename(assetPath); // merbabu.mbtiles
+      final id = p.basenameWithoutExtension(assetPath); // merbabu
+
+      // Copy to local storage
+      final localPath = await _copyAssetToLocal(assetPath, filename);
+
+      // Insert/Update MountainRegion
+      // Note: We use the ID as the name initially, user can update metadata later or we can have a metadata.json
+      final name =
+          id[0].toUpperCase() + id.substring(1); // Capitalize first letter
+
+      await db.into(db.mountainRegions).insertOnConflictUpdate(
+            MountainRegionsCompanion(
+              id: Value(id),
+              name: Value('Mount $name'), // e.g. Mount Merbabu
+              description: const Value('Offline map available'),
+              isDownloaded: const Value(true),
+              localMapPath: Value(localPath),
+              // Default center, will be updated if GPX tracks are loaded
+              lat: const Value(-7.5),
+              lng: const Value(110.5),
+            ),
+          );
+      debugPrint('[Seeding] Seeded map: $id');
+    } catch (e) {
+      debugPrint('[Seeding] Error seeding map $assetPath: $e');
+    }
+  }
+
+  Future<void> _seedGpxAsset(String assetPath) async {
+    try {
+      // assetPath: assets/gpx/merbabu/Selo.gpx
+      final parts = assetPath.split('/');
+      if (parts.length < 3) return; // invalid structure
+
+      final mountainId = parts[parts.length - 2]; // merbabu
+      // final filename = p.basename(assetPath); // unused
+      final trailName = p.basenameWithoutExtension(assetPath); // Selo
+      final trailId = '${mountainId}_${trailName.toLowerCase()}';
+
+      await _trackLoader.loadFullGpxData(assetPath, mountainId, trailId);
+
+      // Update mountain location based on trail data (first point) to center map
+      // This is a simplified approach; ideally usage a metadata file.
+      debugPrint('[Seeding] Seeded trail: $trailName for $mountainId');
+    } catch (e) {
+      debugPrint('[Seeding] Error seeding GPX $assetPath: $e');
+    }
+  }
+
+  /// 1. Mount Merbabu (Central Java) - Legacy shim keeping for backward compatibility
   Future<void> seedMerbabu() async {
-    // 1. Copy MBTiles from asset to local storage
-    final mbtilesPath = await _copyAssetToLocal(
-      'assets/map_data/merbabu.mbtiles',
-      'merbabu.mbtiles',
-    );
-
-    await db.into(db.mountainRegions).insertOnConflictUpdate(
-          MountainRegionsCompanion(
-            id: const Value('merbabu'),
-            name: const Value('Mount Merbabu'),
-            description: const Value(
-                'A lush dormant volcano in Central Java. Popular for its savannas.'),
-            boundaryJson: const Value('{}'),
-            lat: const Value(-7.4526), // Selo Basecamp
-            lng: const Value(110.4422),
-            isDownloaded: const Value(true),
-            localMapPath: Value(mbtilesPath), // Save local path
-          ),
-        );
-
-    // Load trail and POI data from GPX files
-    await loadMerbabuGpxTrails();
+    await discoverAndSeedAssets();
   }
 
   /// Helper to copy asset to local file system
@@ -233,37 +302,6 @@ class SeedingService {
       debugPrint('[Seeding] Error copying $filename: $e');
       return '';
     }
-  }
-
-  /// Loads all Merbabu trails from GPX files in assets/gpx/merbabu/
-  /// This parses both tracks (trail geometry) and waypoints (basecamps, POIs)
-  Future<void> loadMerbabuGpxTrails() async {
-    const gpxFiles = {
-      'Selo': 'assets/gpx/merbabu/Selo.gpx',
-      'Wekas': 'assets/gpx/merbabu/Wekas.gpx',
-      'Suwanting': 'assets/gpx/merbabu/Suwanting.gpx',
-      'Thekelan': 'assets/gpx/merbabu/Thekelan.gpx',
-      'Cuntel': 'assets/gpx/merbabu/Cuntel.gpx',
-      'Gancik': 'assets/gpx/merbabu/Gancik.gpx',
-      'Grenden': 'assets/gpx/merbabu/Grenden.gpx',
-    };
-
-    await Future.wait(gpxFiles.entries.map((entry) async {
-      final trailName = entry.key;
-      final assetPath = entry.value;
-      final trailId = 'merbabu_${trailName.toLowerCase()}';
-
-      try {
-        await _trackLoader.loadFullGpxData(
-          assetPath,
-          'merbabu',
-          trailId,
-        );
-        debugPrint('[Seeding] Loaded Merbabu trail: $trailName');
-      } catch (e) {
-        debugPrint('[Seeding] Error loading $trailName: $e');
-      }
-    }));
   }
 
   /// 2. Mount Rinjani (Lombok)
