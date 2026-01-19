@@ -16,15 +16,21 @@ class MapLayerService {
   static const String dangerZoneSourceId = 'danger-zone-source';
   static const String dangerZoneLayerId = 'danger-zone-layer';
 
+  // POI Layer constants
+  static const String poiSourceId = 'poi-source';
+  static const String poiLayerId = 'poi-layer';
+
   bool _trailLayerAdded = false;
   bool _backtrackLayerAdded = false;
   bool _dangerZoneLayerAdded = false;
+  bool _poiLayerAdded = false;
 
   void attach(MapLibreMapController controller) {
     _controller = controller;
     _trailLayerAdded = false;
     _backtrackLayerAdded = false;
     _dangerZoneLayerAdded = false;
+    _poiLayerAdded = false;
   }
 
   void detach() {
@@ -32,6 +38,7 @@ class MapLayerService {
     _trailLayerAdded = false;
     _backtrackLayerAdded = false;
     _dangerZoneLayerAdded = false;
+    _poiLayerAdded = false;
   }
 
   /// Draws trail polylines on the map
@@ -177,33 +184,56 @@ class MapLayerService {
 
   /// Adds POI markers using symbols
   Future<void> addPOIMarkers(List<PointOfInterest> pois) async {
-    if (_controller == null || pois.isEmpty) return;
-
-    // MapLibre symbols require a sprite sheet.
-    // For now, we'll use circles with text labels or add symbols manually.
-    // This is a simplified implementation using addSymbol for each POI.
+    if (_controller == null) return;
 
     try {
-      // Clear existing symbols first
+      // Clear existing symbols first (legacy cleanup)
       await _controller!.clearSymbols();
 
-      for (final poi in pois) {
-        String iconName = 'marker';
+      if (pois.isEmpty) {
+        if (_poiLayerAdded) {
+          await _controller!.removeLayer(poiLayerId);
+          await _controller!.removeSource(poiSourceId);
+          _poiLayerAdded = false;
+        }
+        return;
+      }
 
-        // Note: Custom icons require sprite configuration in the style JSON
-        // For now we use default marker or add circles instead
-        await _controller!.addSymbol(
-          SymbolOptions(
-            geometry: LatLng(poi.lat, poi.lng),
-            iconImage: iconName,
+      final features = pois.map((poi) {
+        return {
+          'type': 'Feature',
+          'id': poi.id,
+          'properties': {
+            'name': poi.name,
+            'type': poi.type.index,
+          },
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [poi.lng, poi.lat],
+          },
+        };
+      }).toList();
+
+      final geojson = {'type': 'FeatureCollection', 'features': features};
+
+      if (!_poiLayerAdded) {
+        await _controller!.addGeoJsonSource(poiSourceId, geojson);
+        await _controller!.addSymbolLayer(
+          poiSourceId,
+          poiLayerId,
+          const SymbolLayerProperties(
+            iconImage: 'marker',
             iconSize: 1.5,
-            textField: poi.name,
-            textOffset: const Offset(0, 2),
+            textField: ['get', 'name'],
+            textOffset: [0, 2],
             textColor: '#ffffff',
             textHaloColor: '#000000',
             textHaloWidth: 1,
           ),
         );
+        _poiLayerAdded = true;
+      } else {
+        await _controller!.setGeoJsonSource(poiSourceId, geojson);
       }
     } catch (e) {
       debugPrint('Error adding POI markers: $e');
