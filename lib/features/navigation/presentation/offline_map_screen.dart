@@ -110,6 +110,14 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     _compassSubscription = FlutterCompass.events?.listen((event) {
       if (mounted && event.heading != null) {
         _compassHeading.value = event.heading!;
+        // Update user location marker rotation immediately
+        final userLoc = ref.read(userLocationProvider).value;
+        if (userLoc != null) {
+          mapLayerService.drawUserLocation(
+            LatLng(userLoc.lat, userLoc.lng),
+            event.heading!,
+          );
+        }
       }
     });
   }
@@ -853,6 +861,16 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     final mapStyle = ref.watch(mapStyleProvider);
     final dangerZones = ref.watch(dangerZonesProvider);
 
+    // Update User Location Layer (Side Effect)
+    ref.listen(userLocationProvider, (prev, next) {
+      if (next.value != null) {
+        mapLayerService.drawUserLocation(
+          LatLng(next.value!.lat, next.value!.lng),
+          _compassHeading.value,
+        );
+      }
+    });
+
     // Heading Calculation (using GeoMath now)
     double compassHeading = 0;
     if (backtrackTarget != null && userLocAsync.value != null) {
@@ -877,7 +895,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           children: [
             // 1. MAP LAYER (MapLibre - PHASE 2)
             if (_styleString == null)
-              Container(color: const Color(0xFF1a1a1a)) // Loading placeholder
+              Container(color: const Color(0xFF050505)) // Loading placeholder
             else
               MapLibreMap(
                 // Using dynamic style string
@@ -886,9 +904,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   target: LatLng(-7.453, 110.448), // Mt. Merbabu
                   zoom: 12.0,
                 ),
-                myLocationEnabled: _isLocationPermissionGranted,
-                myLocationRenderMode: MyLocationRenderMode.compass,
-                myLocationTrackingMode: MyLocationTrackingMode.tracking,
+                myLocationEnabled: false, // Custom Rendering
+                myLocationRenderMode: MyLocationRenderMode.normal,
                 onMapCreated: (controller) {
                   _mapController = controller;
                   mapLayerService.attach(controller);
@@ -896,9 +913,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                 onStyleLoadedCallback: () {
                   _drawMapLayers();
                 },
-                onUserLocationUpdated: (location) {
-                  // Optional: Update provider manually if needed
-                },
+                onUserLocationUpdated: (location) {},
                 onMapClick: (point, latLng) => _handleMapTap(latLng),
                 onMapLongClick: (point, latLng) => _handleMapLongPress(latLng),
               ),
