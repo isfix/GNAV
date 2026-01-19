@@ -163,6 +163,12 @@ class TrackingDao extends DatabaseAccessor<AppDatabase>
     return into(userBreadcrumbs).insert(entry);
   }
 
+  Future<void> insertBreadcrumbs(List<UserBreadcrumbsCompanion> entries) {
+    return batch((batch) {
+      batch.insertAll(userBreadcrumbs, entries);
+    });
+  }
+
   Future<List<UserBreadcrumb>> getSessionHistory(String sessionId) {
     return (select(userBreadcrumbs)
           ..where((t) => t.sessionId.equals(sessionId))
