@@ -37,6 +37,18 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  Future<List<Trail>> getTrailsNearBasecamp(
+      String mountainId, double lat, double lng, double buffer) {
+    return (select(trails)
+          ..where((t) =>
+              t.mountainId.equals(mountainId) &
+              t.minLat.isSmallerOrEqualValue(lat + buffer) &
+              t.maxLat.isBiggerOrEqualValue(lat - buffer) &
+              t.minLng.isSmallerOrEqualValue(lng + buffer) &
+              t.maxLng.isBiggerOrEqualValue(lng - buffer)))
+        .get();
+  }
+
   /// Spatial query using pre-calculated bounding boxes.
   /// This is O(1) indexed lookup instead of O(N) table scan.
   ///
@@ -104,8 +116,10 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
   /// 2. Find trail whose first point is within 500m of basecamp
   /// 3. Return the nearest match
   Future<Trail?> getTrailForBasecamp(PointOfInterest basecamp) async {
-    // Get all trails for this mountain
-    final mountainTrails = await getTrailsForMountain(basecamp.mountainId);
+    // Get trails near this basecamp (approx 0.006 degrees buffer ~ 660m)
+    // This pre-filters trails using O(1) indexed bounding box lookup
+    final mountainTrails = await getTrailsNearBasecamp(
+        basecamp.mountainId, basecamp.lat, basecamp.lng, 0.006);
     if (mountainTrails.isEmpty) return null;
 
     Trail? nearestTrail;
@@ -113,15 +127,12 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
 
     for (final trail in mountainTrails) {
       final geometry = trail.geometryJson;
-      if (geometry == null || (geometry as List).isEmpty) continue;
+      if (geometry.isEmpty) continue;
 
       // Get first point of trail
-      final points = geometry.cast<dynamic>();
-      if (points.isEmpty) continue;
-
-      final firstPoint = points.first;
-      final trailStartLat = (firstPoint.lat as num).toDouble();
-      final trailStartLng = (firstPoint.lng as num).toDouble();
+      final firstPoint = geometry.first;
+      final trailStartLat = firstPoint.lat;
+      final trailStartLng = firstPoint.lng;
 
       // Calculate approximate distance (Haversine simplified)
       final dLat = (trailStartLat - basecamp.lat) * 111320; // meters per degree
