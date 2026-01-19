@@ -44,6 +44,63 @@ class MapLayerService {
     _backtrackLayerAdded = false;
     _dangerZoneLayerAdded = false;
     _poiLayerAdded = false;
+    _userLocationLayerAdded = false;
+  }
+
+  // User Location Constants
+  static const String userLocationSourceId = 'user-location-source';
+  static const String userLocationLayerId = 'user-location-layer';
+  static const String userLocationHaloLayerId = 'user-location-halo-layer';
+  bool _userLocationLayerAdded = false;
+
+  /// Draws the user's location with a custom tactical style
+  Future<void> drawUserLocation(LatLng location, double heading) async {
+    if (_controller == null) return;
+
+    try {
+      final geojson = {
+        'type': 'Feature',
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [location.longitude, location.latitude]
+        },
+        'properties': {'heading': heading}
+      };
+
+      if (!_userLocationLayerAdded) {
+        await _controller!.addGeoJsonSource(userLocationSourceId, geojson);
+
+        // 1. Halo (Pulsing effect simulation via transparency)
+        await _controller!.addCircleLayer(
+          userLocationSourceId,
+          userLocationHaloLayerId,
+          const CircleLayerProperties(
+            circleColor: '#00FF00', // Neon Green
+            circleRadius: 20,
+            circleOpacity: 0.2,
+            circleStrokeWidth: 0,
+          ),
+        );
+
+        // 2. Core Dot
+        await _controller!.addCircleLayer(
+          userLocationSourceId,
+          userLocationLayerId,
+          const CircleLayerProperties(
+            circleColor: '#00FF00', // Neon Green
+            circleRadius: 6,
+            circleStrokeWidth: 2,
+            circleStrokeColor: '#FFFFFF',
+          ),
+        );
+
+        _userLocationLayerAdded = true;
+      } else {
+        await _controller!.setGeoJsonSource(userLocationSourceId, geojson);
+      }
+    } catch (e) {
+      debugPrint('Error drawing user location: $e');
+    }
   }
 
   /// Draws trail polylines on the map
@@ -103,7 +160,7 @@ class MapLayerService {
           trailSourceId,
           trailLayerId,
           LineLayerProperties(
-            lineColor: '#FF453A', // Premium Red-Orange
+            lineColor: '#00FFFF', // Neon Cyan
             lineWidth: 3.0,
             lineCap: 'round',
             lineJoin: 'round',
@@ -122,8 +179,8 @@ class MapLayerService {
             textSize: 12,
             textAllowOverlap: false,
             textIgnorePlacement: false,
-            textColor: '#000000',
-            textHaloColor: '#ffffff',
+            textColor: '#00FFFF',
+            textHaloColor: '#000000',
             textHaloWidth: 2,
           ),
         );
@@ -136,7 +193,7 @@ class MapLayerService {
             '${trailSourceId}_highlight',
             '${trailLayerId}_highlight',
             const LineLayerProperties(
-              lineColor: '#FF453A',
+              lineColor: '#FFD700', // Gold for highlight
               lineWidth: 6.0,
               lineCap: 'round',
               lineJoin: 'round',

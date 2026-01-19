@@ -1,6 +1,6 @@
 {
     "version": 8,
-    "name": "PANDU Light Gray (Vector)",
+    "name": "PANDU Tactical Dark",
     "glyphs": "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
     "sources": {
         "openmaptiles": {
@@ -13,7 +13,7 @@
             "id": "background",
             "type": "background",
             "paint": {
-                "background-color": "#f5f5f5"
+                "background-color": "#050505"
             }
         },
         {
@@ -27,7 +27,7 @@
                 "grass"
             ],
             "paint": {
-                "fill-color": "#e8f0e8",
+                "fill-color": "#0f140f",
                 "fill-opacity": 0.6
             }
         },
@@ -42,7 +42,7 @@
                 "wood"
             ],
             "paint": {
-                "fill-color": "#d4e4d4",
+                "fill-color": "#0a110a",
                 "fill-opacity": 0.7
             }
         },
@@ -58,7 +58,7 @@
                 "cemetery"
             ],
             "paint": {
-                "fill-color": "#e0ece0",
+                "fill-color": "#111611",
                 "fill-opacity": 0.5
             }
         },
@@ -68,7 +68,7 @@
             "source": "openmaptiles",
             "source-layer": "water",
             "paint": {
-                "fill-color": "#c8dce8"
+                "fill-color": "#080c10"
             }
         },
         {
@@ -77,7 +77,7 @@
             "source": "openmaptiles",
             "source-layer": "waterway",
             "paint": {
-                "line-color": "#b8ccd8",
+                "line-color": "#1c2833",
                 "line-width": 1.5
             }
         },
@@ -87,9 +87,9 @@
             "source": "openmaptiles",
             "source-layer": "contour",
             "paint": {
-                "line-color": "#a0a0a0",
+                "line-color": "#2a2a2a",
                 "line-width": 0.5,
-                "line-opacity": 0.8
+                "line-opacity": 0.6
             }
         },
         {
@@ -116,16 +116,13 @@
             ],
             "layout": {
                 "symbol-placement": "line",
-                "text-field": "{ele}m",
+                "text-field": "{ele}",
                 "text-size": 10,
-                "text-font": [
-                    "Metropolis Light Italic"
-                ],
                 "text-letter-spacing": 0.1
             },
             "paint": {
-                "text-color": "#808080",
-                "text-halo-color": "#ffffff",
+                "text-color": "#444444",
+                "text-halo-color": "#000000",
                 "text-halo-width": 1
             }
         },
@@ -135,8 +132,8 @@
             "source": "openmaptiles",
             "source-layer": "building",
             "paint": {
-                "fill-color": "#e0e0e0",
-                "fill-outline-color": "#c8c8c8"
+                "fill-color": "#1a1a1a",
+                "fill-outline-color": "#222222"
             }
         },
         {
@@ -150,7 +147,7 @@
                 "path"
             ],
             "paint": {
-                "line-color": "#b0b0b0",
+                "line-color": "#444444",
                 "line-width": 1,
                 "line-dasharray": [
                     2,
@@ -169,7 +166,7 @@
                 "track"
             ],
             "paint": {
-                "line-color": "#a8a8a8",
+                "line-color": "#555555",
                 "line-width": 1.5,
                 "line-dasharray": [
                     4,
@@ -189,7 +186,7 @@
                 "service"
             ],
             "paint": {
-                "line-color": "#ffffff",
+                "line-color": "#333333",
                 "line-width": 2
             }
         },
@@ -204,7 +201,7 @@
                 "secondary"
             ],
             "paint": {
-                "line-color": "#ffffff",
+                "line-color": "#555555",
                 "line-width": 3
             }
         },
@@ -219,7 +216,7 @@
                 "primary"
             ],
             "paint": {
-                "line-color": "#f0e8d0",
+                "line-color": "#777777",
                 "line-width": 4
             }
         },
@@ -234,7 +231,7 @@
                 4
             ],
             "paint": {
-                "line-color": "#c8c8c8",
+                "line-color": "#333333",
                 "line-width": 1,
                 "line-dasharray": [
                     3,
@@ -246,7 +243,12 @@
             "id": "mountain-peak",
             "type": "symbol",
             "source": "openmaptiles",
-            "source-layer": "mountain_peak",
+            "source-layer": "poi",
+            "filter": [
+                "==",
+                "class",
+                "peak"
+            ],
             "layout": {
                 "icon-image": "mountain-11",
                 "icon-size": 1,
@@ -254,7 +256,7 @@
                     "get",
                     "name"
                 ],
-                "text-size": 10,
+                "text-size": 11,
                 "text-offset": [
                     0,
                     1.2
@@ -262,9 +264,9 @@
                 "text-anchor": "top"
             },
             "paint": {
-                "text-color": "#666666",
-                "text-halo-color": "#ffffff",
-                "text-halo-width": 1
+                "text-color": "#aaaaaa",
+                "text-halo-color": "#000000",
+                "text-halo-width": 1.5
             }
         },
         {
@@ -282,12 +284,12 @@
                     "get",
                     "name"
                 ],
-                "text-size": 11
+                "text-size": 12
             },
             "paint": {
-                "text-color": "#555555",
-                "text-halo-color": "#ffffff",
-                "text-halo-width": 1
+                "text-color": "#999999",
+                "text-halo-color": "#000000",
+                "text-halo-width": 1.5
             }
         },
         {
@@ -305,12 +307,12 @@
                     "get",
                     "name"
                 ],
-                "text-size": 13
+                "text-size": 14
             },
             "paint": {
-                "text-color": "#444444",
-                "text-halo-color": "#ffffff",
-                "text-halo-width": 1.5
+                "text-color": "#bbbbbb",
+                "text-halo-color": "#000000",
+                "text-halo-width": 2
             }
         }
     ]

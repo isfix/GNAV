@@ -265,21 +265,29 @@ class SeedingService {
   Future<void> _seedGpxAsset(String assetPath) async {
     try {
       // assetPath: assets/gpx/merbabu/Selo.gpx
+      debugPrint('[Seeding] Attempting to seed GPX: $assetPath');
       final parts = assetPath.split('/');
-      if (parts.length < 3) return; // invalid structure
+      if (parts.length < 3) {
+        debugPrint('[Seeding] Invalid GPX path structure: $assetPath');
+        return;
+      }
 
       final mountainId = parts[parts.length - 2]; // merbabu
       // final filename = p.basename(assetPath); // unused
       final trailName = p.basenameWithoutExtension(assetPath); // Selo
       final trailId = '${mountainId}_${trailName.toLowerCase()}';
 
+      debugPrint('[Seeding] Parsed ID: $trailId (Mountain: $mountainId)');
+
       await _trackLoader.loadFullGpxData(assetPath, mountainId, trailId);
 
       // Update mountain location based on trail data (first point) to center map
       // This is a simplified approach; ideally usage a metadata file.
-      debugPrint('[Seeding] Seeded trail: $trailName for $mountainId');
-    } catch (e) {
-      debugPrint('[Seeding] Error seeding GPX $assetPath: $e');
+      debugPrint(
+          '[Seeding] Successfully seeded trail: $trailName for $mountainId');
+    } catch (e, stackTrace) {
+      debugPrint('[Seeding] CRITICAL ERROR seeding GPX $assetPath: $e');
+      debugPrint('[Seeding] StackTrace: $stackTrace');
     }
   }
 
