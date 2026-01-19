@@ -29,20 +29,11 @@ class SeedingService {
     required List<TrailPoint> points,
     required int difficulty,
   }) {
-    // Calculate bounding box
+    // Calculate bounding box, distance and elevation gain in a single loop
     double minLat = double.infinity;
     double maxLat = double.negativeInfinity;
     double minLng = double.infinity;
     double maxLng = double.negativeInfinity;
-
-    for (final point in points) {
-      if (point.lat < minLat) minLat = point.lat;
-      if (point.lat > maxLat) maxLat = point.lat;
-      if (point.lng < minLng) minLng = point.lng;
-      if (point.lng > maxLng) maxLng = point.lng;
-    }
-
-    // Calculate distance and elevation gain
     double distance = 0;
     double elevationGain = 0;
     int summitIndex = 0;
@@ -50,13 +41,23 @@ class SeedingService {
 
     for (int i = 0; i < points.length; i++) {
       final point = points[i];
+
+      // Bounds calculation
+      if (point.lat < minLat) minLat = point.lat;
+      if (point.lat > maxLat) maxLat = point.lat;
+      if (point.lng < minLng) minLng = point.lng;
+      if (point.lng > maxLng) maxLng = point.lng;
+
+      // Summit Detection
       if (point.elevation != null && point.elevation! > highestElevation) {
         highestElevation = point.elevation!;
         summitIndex = i;
       }
+
+      // Distance & Elevation Gain
       if (i > 0) {
-        // Approximate distance using haversine would be better, but simplified here
         final prevPoint = points[i - 1];
+        // Approximate distance using haversine would be better, but simplified here
         final dLat =
             (point.lat - prevPoint.lat) * 111320; // meters per degree lat
         final dLng = (point.lng - prevPoint.lng) *
