@@ -573,6 +573,18 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
       type: DriftSqlType.double,
       requiredDuringInsert: false,
       defaultValue: const Constant(0.0));
+  static const VerificationMeta _startLatMeta =
+      const VerificationMeta('startLat');
+  @override
+  late final GeneratedColumn<double> startLat = GeneratedColumn<double>(
+      'start_lat', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _startLngMeta =
+      const VerificationMeta('startLng');
+  @override
+  late final GeneratedColumn<double> startLng = GeneratedColumn<double>(
+      'start_lng', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
   static const VerificationMeta _isOfficialMeta =
       const VerificationMeta('isOfficial');
   @override
@@ -597,6 +609,8 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
         maxLat,
         minLng,
         maxLng,
+        startLat,
+        startLng,
         isOfficial
       ];
   @override
@@ -666,6 +680,14 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
       context.handle(_maxLngMeta,
           maxLng.isAcceptableOrUnknown(data['max_lng']!, _maxLngMeta));
     }
+    if (data.containsKey('start_lat')) {
+      context.handle(_startLatMeta,
+          startLat.isAcceptableOrUnknown(data['start_lat']!, _startLatMeta));
+    }
+    if (data.containsKey('start_lng')) {
+      context.handle(_startLngMeta,
+          startLng.isAcceptableOrUnknown(data['start_lng']!, _startLngMeta));
+    }
     if (data.containsKey('is_official')) {
       context.handle(
           _isOfficialMeta,
@@ -706,6 +728,10 @@ class $TrailsTable extends Trails with TableInfo<$TrailsTable, Trail> {
           .read(DriftSqlType.double, data['${effectivePrefix}min_lng'])!,
       maxLng: attachedDatabase.typeMapping
           .read(DriftSqlType.double, data['${effectivePrefix}max_lng'])!,
+      startLat: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}start_lat']),
+      startLng: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}start_lng']),
       isOfficial: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_official'])!,
     );
@@ -733,6 +759,8 @@ class Trail extends DataClass implements Insertable<Trail> {
   final double maxLat;
   final double minLng;
   final double maxLng;
+  final double? startLat;
+  final double? startLng;
   final bool isOfficial;
   const Trail(
       {required this.id,
@@ -747,6 +775,8 @@ class Trail extends DataClass implements Insertable<Trail> {
       required this.maxLat,
       required this.minLng,
       required this.maxLng,
+      this.startLat,
+      this.startLng,
       required this.isOfficial});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -766,6 +796,12 @@ class Trail extends DataClass implements Insertable<Trail> {
     map['max_lat'] = Variable<double>(maxLat);
     map['min_lng'] = Variable<double>(minLng);
     map['max_lng'] = Variable<double>(maxLng);
+    if (!nullToAbsent || startLat != null) {
+      map['start_lat'] = Variable<double>(startLat);
+    }
+    if (!nullToAbsent || startLng != null) {
+      map['start_lng'] = Variable<double>(startLng);
+    }
     map['is_official'] = Variable<bool>(isOfficial);
     return map;
   }
@@ -784,6 +820,12 @@ class Trail extends DataClass implements Insertable<Trail> {
       maxLat: Value(maxLat),
       minLng: Value(minLng),
       maxLng: Value(maxLng),
+      startLat: startLat == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startLat),
+      startLng: startLng == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startLng),
       isOfficial: Value(isOfficial),
     );
   }
@@ -804,6 +846,8 @@ class Trail extends DataClass implements Insertable<Trail> {
       maxLat: serializer.fromJson<double>(json['maxLat']),
       minLng: serializer.fromJson<double>(json['minLng']),
       maxLng: serializer.fromJson<double>(json['maxLng']),
+      startLat: serializer.fromJson<double?>(json['startLat']),
+      startLng: serializer.fromJson<double?>(json['startLng']),
       isOfficial: serializer.fromJson<bool>(json['isOfficial']),
     );
   }
@@ -823,6 +867,8 @@ class Trail extends DataClass implements Insertable<Trail> {
       'maxLat': serializer.toJson<double>(maxLat),
       'minLng': serializer.toJson<double>(minLng),
       'maxLng': serializer.toJson<double>(maxLng),
+      'startLat': serializer.toJson<double?>(startLat),
+      'startLng': serializer.toJson<double?>(startLng),
       'isOfficial': serializer.toJson<bool>(isOfficial),
     };
   }
@@ -840,6 +886,8 @@ class Trail extends DataClass implements Insertable<Trail> {
           double? maxLat,
           double? minLng,
           double? maxLng,
+          Value<double?> startLat = const Value.absent(),
+          Value<double?> startLng = const Value.absent(),
           bool? isOfficial}) =>
       Trail(
         id: id ?? this.id,
@@ -854,6 +902,8 @@ class Trail extends DataClass implements Insertable<Trail> {
         maxLat: maxLat ?? this.maxLat,
         minLng: minLng ?? this.minLng,
         maxLng: maxLng ?? this.maxLng,
+        startLat: startLat.present ? startLat.value : this.startLat,
+        startLng: startLng.present ? startLng.value : this.startLng,
         isOfficial: isOfficial ?? this.isOfficial,
       );
   Trail copyWithCompanion(TrailsCompanion data) {
@@ -877,6 +927,8 @@ class Trail extends DataClass implements Insertable<Trail> {
       maxLat: data.maxLat.present ? data.maxLat.value : this.maxLat,
       minLng: data.minLng.present ? data.minLng.value : this.minLng,
       maxLng: data.maxLng.present ? data.maxLng.value : this.maxLng,
+      startLat: data.startLat.present ? data.startLat.value : this.startLat,
+      startLng: data.startLng.present ? data.startLng.value : this.startLng,
       isOfficial:
           data.isOfficial.present ? data.isOfficial.value : this.isOfficial,
     );
@@ -897,6 +949,8 @@ class Trail extends DataClass implements Insertable<Trail> {
           ..write('maxLat: $maxLat, ')
           ..write('minLng: $minLng, ')
           ..write('maxLng: $maxLng, ')
+          ..write('startLat: $startLat, ')
+          ..write('startLng: $startLng, ')
           ..write('isOfficial: $isOfficial')
           ..write(')'))
         .toString();
@@ -916,6 +970,8 @@ class Trail extends DataClass implements Insertable<Trail> {
       maxLat,
       minLng,
       maxLng,
+      startLat,
+      startLng,
       isOfficial);
   @override
   bool operator ==(Object other) =>
@@ -933,6 +989,8 @@ class Trail extends DataClass implements Insertable<Trail> {
           other.maxLat == this.maxLat &&
           other.minLng == this.minLng &&
           other.maxLng == this.maxLng &&
+          other.startLat == this.startLat &&
+          other.startLng == this.startLng &&
           other.isOfficial == this.isOfficial);
 }
 
@@ -949,6 +1007,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
   final Value<double> maxLat;
   final Value<double> minLng;
   final Value<double> maxLng;
+  final Value<double?> startLat;
+  final Value<double?> startLng;
   final Value<bool> isOfficial;
   final Value<int> rowid;
   const TrailsCompanion({
@@ -964,6 +1024,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     this.maxLat = const Value.absent(),
     this.minLng = const Value.absent(),
     this.maxLng = const Value.absent(),
+    this.startLat = const Value.absent(),
+    this.startLng = const Value.absent(),
     this.isOfficial = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -980,6 +1042,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     this.maxLat = const Value.absent(),
     this.minLng = const Value.absent(),
     this.maxLng = const Value.absent(),
+    this.startLat = const Value.absent(),
+    this.startLng = const Value.absent(),
     this.isOfficial = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -999,6 +1063,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     Expression<double>? maxLat,
     Expression<double>? minLng,
     Expression<double>? maxLng,
+    Expression<double>? startLat,
+    Expression<double>? startLng,
     Expression<bool>? isOfficial,
     Expression<int>? rowid,
   }) {
@@ -1015,6 +1081,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       if (maxLat != null) 'max_lat': maxLat,
       if (minLng != null) 'min_lng': minLng,
       if (maxLng != null) 'max_lng': maxLng,
+      if (startLat != null) 'start_lat': startLat,
+      if (startLng != null) 'start_lng': startLng,
       if (isOfficial != null) 'is_official': isOfficial,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1033,6 +1101,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       Value<double>? maxLat,
       Value<double>? minLng,
       Value<double>? maxLng,
+      Value<double?>? startLat,
+      Value<double?>? startLng,
       Value<bool>? isOfficial,
       Value<int>? rowid}) {
     return TrailsCompanion(
@@ -1048,6 +1118,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
       maxLat: maxLat ?? this.maxLat,
       minLng: minLng ?? this.minLng,
       maxLng: maxLng ?? this.maxLng,
+      startLat: startLat ?? this.startLat,
+      startLng: startLng ?? this.startLng,
       isOfficial: isOfficial ?? this.isOfficial,
       rowid: rowid ?? this.rowid,
     );
@@ -1093,6 +1165,12 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
     if (maxLng.present) {
       map['max_lng'] = Variable<double>(maxLng.value);
     }
+    if (startLat.present) {
+      map['start_lat'] = Variable<double>(startLat.value);
+    }
+    if (startLng.present) {
+      map['start_lng'] = Variable<double>(startLng.value);
+    }
     if (isOfficial.present) {
       map['is_official'] = Variable<bool>(isOfficial.value);
     }
@@ -1117,6 +1195,8 @@ class TrailsCompanion extends UpdateCompanion<Trail> {
           ..write('maxLat: $maxLat, ')
           ..write('minLng: $minLng, ')
           ..write('maxLng: $maxLng, ')
+          ..write('startLat: $startLat, ')
+          ..write('startLng: $startLng, ')
           ..write('isOfficial: $isOfficial, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2802,6 +2882,8 @@ typedef $$TrailsTableCreateCompanionBuilder = TrailsCompanion Function({
   Value<double> maxLat,
   Value<double> minLng,
   Value<double> maxLng,
+  Value<double?> startLat,
+  Value<double?> startLng,
   Value<bool> isOfficial,
   Value<int> rowid,
 });
@@ -2818,6 +2900,8 @@ typedef $$TrailsTableUpdateCompanionBuilder = TrailsCompanion Function({
   Value<double> maxLat,
   Value<double> minLng,
   Value<double> maxLng,
+  Value<double?> startLat,
+  Value<double?> startLng,
   Value<bool> isOfficial,
   Value<int> rowid,
 });
@@ -2887,6 +2971,12 @@ class $$TrailsTableFilterComposer
   ColumnFilters<double> get maxLng => $composableBuilder(
       column: $table.maxLng, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<double> get startLat => $composableBuilder(
+      column: $table.startLat, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get startLng => $composableBuilder(
+      column: $table.startLng, builder: (column) => ColumnFilters(column));
+
   ColumnFilters<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => ColumnFilters(column));
 
@@ -2955,6 +3045,12 @@ class $$TrailsTableOrderingComposer
   ColumnOrderings<double> get maxLng => $composableBuilder(
       column: $table.maxLng, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get startLat => $composableBuilder(
+      column: $table.startLat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get startLng => $composableBuilder(
+      column: $table.startLng, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => ColumnOrderings(column));
 
@@ -3022,6 +3118,12 @@ class $$TrailsTableAnnotationComposer
   GeneratedColumn<double> get maxLng =>
       $composableBuilder(column: $table.maxLng, builder: (column) => column);
 
+  GeneratedColumn<double> get startLat =>
+      $composableBuilder(column: $table.startLat, builder: (column) => column);
+
+  GeneratedColumn<double> get startLng =>
+      $composableBuilder(column: $table.startLng, builder: (column) => column);
+
   GeneratedColumn<bool> get isOfficial => $composableBuilder(
       column: $table.isOfficial, builder: (column) => column);
 
@@ -3081,6 +3183,8 @@ class $$TrailsTableTableManager extends RootTableManager<
             Value<double> maxLat = const Value.absent(),
             Value<double> minLng = const Value.absent(),
             Value<double> maxLng = const Value.absent(),
+            Value<double?> startLat = const Value.absent(),
+            Value<double?> startLng = const Value.absent(),
             Value<bool> isOfficial = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -3097,6 +3201,8 @@ class $$TrailsTableTableManager extends RootTableManager<
             maxLat: maxLat,
             minLng: minLng,
             maxLng: maxLng,
+            startLat: startLat,
+            startLng: startLng,
             isOfficial: isOfficial,
             rowid: rowid,
           ),
@@ -3113,6 +3219,8 @@ class $$TrailsTableTableManager extends RootTableManager<
             Value<double> maxLat = const Value.absent(),
             Value<double> minLng = const Value.absent(),
             Value<double> maxLng = const Value.absent(),
+            Value<double?> startLat = const Value.absent(),
+            Value<double?> startLng = const Value.absent(),
             Value<bool> isOfficial = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -3129,6 +3237,8 @@ class $$TrailsTableTableManager extends RootTableManager<
             maxLat: maxLat,
             minLng: minLng,
             maxLng: maxLng,
+            startLat: startLat,
+            startLng: startLng,
             isOfficial: isOfficial,
             rowid: rowid,
           ),
