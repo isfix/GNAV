@@ -53,6 +53,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   Timer? _simTimer;
   int _simIndex = 0;
   List<LatLng> _simPath = [];
+  final List<UserBreadcrumbsCompanion> _simBreadcrumbBuffer = [];
+  static const int _simBatchSize = 5;
 
   // Background Service
   final bool _isServiceRunning = false;
@@ -138,8 +140,23 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     }
   }
 
-  void _startSimulation({bool deviate = false}) {
+  void _stopSimulation() {
     _simTimer?.cancel();
+    _simTimer = null;
+    _flushSimBuffer();
+  }
+
+  Future<void> _flushSimBuffer() async {
+    if (_simBreadcrumbBuffer.isNotEmpty) {
+      final db = ref.read(databaseProvider);
+      final toInsert = List<UserBreadcrumbsCompanion>.from(_simBreadcrumbBuffer);
+      _simBreadcrumbBuffer.clear();
+      await db.trackingDao.insertBreadcrumbs(toInsert);
+    }
+  }
+
+  void _startSimulation({bool deviate = false}) {
+    _stopSimulation(); // Ensure previous simulation is stopped and flushed
     _simIndex = 0;
 
     ref.read(backtrackPathProvider.notifier).state = null;
@@ -160,13 +177,13 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     _simTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (_simIndex >= _simPath.length) {
         timer.cancel();
+        _flushSimBuffer();
         return;
       }
       final pt = _simPath[_simIndex];
       _simIndex++;
 
-      final db = ref.read(databaseProvider);
-      db.trackingDao.insertBreadcrumb(
+      _simBreadcrumbBuffer.add(
         UserBreadcrumbsCompanion(
           sessionId: const drift.Value('sim_session'),
           lat: drift.Value(pt.latitude),
@@ -176,6 +193,10 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           timestamp: drift.Value(DateTime.now()),
         ),
       );
+
+      if (_simBreadcrumbBuffer.length >= _simBatchSize) {
+        _flushSimBuffer();
+      }
 
       _processNavigationLogic(pt);
 
@@ -639,7 +660,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
   @override
   void dispose() {
-    _simTimer?.cancel();
+    _stopSimulation();
     _compassSubscription?.cancel();
     mapLayerService.detach();
     super.dispose();
@@ -856,7 +877,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
             ),
             onTap: () {
               Navigator.pop(context);
-              _simTimer?.cancel();
+                _stopSimulation();
             },
           ),
         ],
