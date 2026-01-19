@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/theme/app_theme.dart';
+import 'core/theme/tactical_theme.dart';
 import 'core/router.dart';
 import 'core/services/seeding_service.dart';
 
@@ -36,7 +36,7 @@ class _PanduAppState extends ConsumerState<PanduApp> {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Pandu Navigation',
-      theme: AppTheme.highContrastDark,
+      theme: TacticalTheme.themeData,
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
     );
