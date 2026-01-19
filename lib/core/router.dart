@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/navigation_v2/screens/home_screen_v2.dart';
 import '../features/track_selection/presentation/track_selection_screen.dart';
 import '../features/navigation/presentation/offline_map_screen.dart';
 import '../data/local/db/app_database.dart';
@@ -11,6 +12,12 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/',
       builder: (context, state) => const HomeScreen(),
+    ),
+
+    // New Home Screen (for development)
+    GoRoute(
+      path: '/v2',
+      builder: (context, state) => const HomeScreenV2(),
     ),
 
     // Track Selection Screen
