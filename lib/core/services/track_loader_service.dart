@@ -138,34 +138,37 @@ class TrackLoaderService {
   /// Process GPX waypoints into PointsOfInterest table with Smart Tagging
   Future<void> _processWaypoints(
       List<Wpt> waypoints, String mountainId, String trailId) async {
-    for (final wpt in waypoints) {
-      final name = wpt.name ?? 'Unknown';
-      final lat = wpt.lat ?? 0.0;
-      final lon = wpt.lon ?? 0.0;
-      final ele = wpt.ele ?? 0.0;
+    await _db.batch((batch) {
+      for (final wpt in waypoints) {
+        final name = wpt.name ?? 'Unknown';
+        final lat = wpt.lat ?? 0.0;
+        final lon = wpt.lon ?? 0.0;
+        final ele = wpt.ele ?? 0.0;
 
-      if (lat == 0 || lon == 0) continue;
+        if (lat == 0 || lon == 0) continue;
 
-      // Smart Tagging: Determine POI type from name
-      final poiType = _categorizeWaypoint(name);
+        // Smart Tagging: Determine POI type from name
+        final poiType = _categorizeWaypoint(name);
 
-      // Generate unique ID
-      final poiId =
-          '${mountainId}_${name.toLowerCase().replaceAll(' ', '_').replaceAll(RegExp(r'[^a-z0-9_]'), '')}';
+        // Generate unique ID
+        final poiId =
+            '${mountainId}_${name.toLowerCase().replaceAll(' ', '_').replaceAll(RegExp(r'[^a-z0-9_]'), '')}';
 
-      final poiEntry = PointsOfInterestCompanion(
-        id: drift.Value(poiId),
-        mountainId: drift.Value(mountainId),
-        name: drift.Value(name),
-        lat: drift.Value(lat),
-        lng: drift.Value(lon),
-        type: drift.Value(poiType),
-        elevation: drift.Value(ele),
-      );
+        final poiEntry = PointsOfInterestCompanion(
+          id: drift.Value(poiId),
+          mountainId: drift.Value(mountainId),
+          name: drift.Value(name),
+          lat: drift.Value(lat),
+          lng: drift.Value(lon),
+          type: drift.Value(poiType),
+          elevation: drift.Value(ele),
+        );
 
-      await _db.into(_db.pointsOfInterest).insertOnConflictUpdate(poiEntry);
-      debugPrint('[TrackLoader] POI saved: $name (${poiType.name})');
-    }
+        batch.insert(_db.pointsOfInterest, poiEntry,
+            onConflict: drift.DoUpdate((_) => poiEntry));
+      }
+    });
+    debugPrint('[TrackLoader] POIs saved: ${waypoints.length}');
   }
 
   /// Smart Tagging: Categorizes waypoints based on name patterns
