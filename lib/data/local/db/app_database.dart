@@ -22,7 +22,7 @@ part 'app_database.g.dart';
   daos: [MountainDao, NavigationDao, TrackingDao],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(_openConnection());
+  AppDatabase([QueryExecutor? e]) : super(e ?? _openConnection());
 
   @override
   int get schemaVersion => 7;
