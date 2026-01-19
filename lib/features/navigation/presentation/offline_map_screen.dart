@@ -928,6 +928,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                 child: CockpitHud(
                   altitude: userLocAsync.value?.altitude ?? 0.0,
                   bearing: compassHeading,
+                  speed: userLocAsync.value?.speed,
                 ),
               ),
             ),
