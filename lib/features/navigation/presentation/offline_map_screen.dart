@@ -147,7 +147,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   Future<void> _flushSimBuffer() async {
     if (_simBreadcrumbBuffer.isNotEmpty) {
       final db = ref.read(databaseProvider);
-      final toInsert = List<UserBreadcrumbsCompanion>.from(_simBreadcrumbBuffer);
+      final toInsert =
+          List<UserBreadcrumbsCompanion>.from(_simBreadcrumbBuffer);
       _simBreadcrumbBuffer.clear();
       await db.trackingDao.insertBreadcrumbs(toInsert);
     }
@@ -715,8 +716,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           children: [
             // 1. MAP LAYER (MapLibre - PHASE 2)
             MapLibreMap(
-              // Using OpenFreeMap style - reliable free vector tiles
-              styleString: 'https://tiles.openfreemap.org/styles/liberty',
+              // Using local style - easy to swap themes
+              styleString: 'asset://assets/map_styles/mapstyle.json',
               initialCameraPosition: const CameraPosition(
                 target: LatLng(-7.453, 110.448), // Mt. Merbabu
                 zoom: 12.0,
@@ -889,7 +890,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
             ),
             onTap: () {
               Navigator.pop(context);
-                _stopSimulation();
+              _stopSimulation();
             },
           ),
         ],

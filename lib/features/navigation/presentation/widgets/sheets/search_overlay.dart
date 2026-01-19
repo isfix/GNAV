@@ -123,61 +123,73 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
                     final region = results[index];
                     return GestureDetector(
                       onTap: () => widget.onSelect(region),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                            color: const Color(0xFF141414).withOpacity(0.6),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border(
-                              left: const BorderSide(
-                                  color: Color(0xFF0df259), width: 4),
-                              top: BorderSide(
-                                  color: Colors.white.withOpacity(0.05)),
-                              bottom: BorderSide(
-                                  color: Colors.white.withOpacity(0.05)),
-                              right: BorderSide(
-                                  color: Colors.white.withOpacity(0.05)),
-                            )),
-                        child: Row(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
                           children: [
-                            // ICON
+                            // Main Container
                             Container(
-                              width: 40,
-                              height: 40,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF141414).withOpacity(0.6),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.05),
+                                ),
                               ),
-                              child: const Icon(Icons.filter_hdr,
-                                  color: Color(0xFF0df259), size: 20),
+                              child: Row(
+                                children: [
+                                  // ICON
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.black,
+                                    ),
+                                    child: const Icon(Icons.filter_hdr,
+                                        color: Color(0xFF0df259), size: 20),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  // TEXT
+                                  Expanded(
+                                      child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(region.name,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14)),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          _Tag(text: region.id.toUpperCase()),
+                                          const SizedBox(width: 8),
+                                          if (region.isDownloaded)
+                                            const _Tag(
+                                                text: "OFFLINE",
+                                                color: Color(0xFF0df259)),
+                                        ],
+                                      )
+                                    ],
+                                  )),
+                                  // ARROW
+                                  const Icon(Icons.chevron_right,
+                                      color: Colors.white24)
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 16),
-                            // TEXT
-                            Expanded(
-                                child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(region.name,
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14)),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    _Tag(text: region.id.toUpperCase()),
-                                    const SizedBox(width: 8),
-                                    if (region.isDownloaded)
-                                      const _Tag(
-                                          text: "OFFLINE",
-                                          color: Color(0xFF0df259)),
-                                  ],
-                                )
-                              ],
-                            )),
-                            // ARROW
-                            const Icon(Icons.chevron_right,
-                                color: Colors.white24)
+                            // Left accent strip
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 4,
+                                color: const Color(0xFF0df259),
+                              ),
+                            ),
                           ],
                         ),
                       ),

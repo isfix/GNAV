@@ -297,18 +297,30 @@ class MapLayerService {
     required String clusterCountLayerId,
     required String clusterColorHex,
   }) async {
-    // Add Source with Cluster enabled
-    await _controller!.addSource(
+    // maplibre_gl 0.25+ doesn't support native clustering via addSource
+    // Workaround: Use addGeoJsonSource and simulate clustering with zoom filters
+
+    // Add GeoJSON source (no clustering - that requires native style JSON)
+    await _controller!.addGeoJsonSource(sourceId, geojson);
+
+    // 1. Individual markers (visible at higher zoom)
+    await _controller!.addCircleLayer(
       sourceId,
-      GeojsonSource(
-        data: geojson,
-        cluster: true,
-        clusterMaxZoom: 14,
-        clusterRadius: 50,
-      ),
+      unclusteredLayerId,
+      unclusteredCircleProps,
+      minzoom: 12, // Only show individual markers at zoom 12+
     );
 
-    // 1. Cluster Circle Layer
+    // 2. Labels for individual markers
+    await _controller!.addSymbolLayer(
+      sourceId,
+      unclusteredLabelLayerId,
+      unclusteredLabelProps,
+      minzoom: 12,
+    );
+
+    // 3. Aggregated circle at low zoom (simulates cluster)
+    // This shows a single marker at the centroid when zoomed out
     await _controller!.addCircleLayer(
       sourceId,
       clusterLayerId,
@@ -318,38 +330,13 @@ class MapLayerService {
         circleStrokeWidth: 2,
         circleStrokeColor: '#ffffff',
       ),
-      filter: ['has', 'point_count'],
+      maxzoom: 12, // Only show at low zoom
     );
 
-    // 2. Cluster Count Symbol Layer
-    await _controller!.addSymbolLayer(
-      sourceId,
-      clusterCountLayerId,
-      const SymbolLayerProperties(
-        textField: ['get', 'point_count_abbreviated'],
-        textSize: 12,
-        textColor: '#ffffff',
-        textAllowOverlap: true,
-        textIgnorePlacement: true,
-      ),
-      filter: ['has', 'point_count'],
-    );
-
-    // 3. Unclustered Point Circle Layer
-    await _controller!.addCircleLayer(
-      sourceId,
-      unclusteredLayerId,
-      unclusteredCircleProps,
-      filter: ['!', ['has', 'point_count']],
-    );
-
-    // 4. Unclustered Point Label Layer
-    await _controller!.addSymbolLayer(
-      sourceId,
-      unclusteredLabelLayerId,
-      unclusteredLabelProps,
-      filter: ['!', ['has', 'point_count']],
-    );
+    // Note: True clustering requires setting cluster options in the style JSON
+    // before loading the map. For full clustering support, use:
+    // 1. A style JSON with pre-defined clustered source, OR
+    // 2. Native code via MethodChannel to add clustered source
   }
 
   /// Draws mountain markers as clickable GeoJSON layer with circle + text

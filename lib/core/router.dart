@@ -1,17 +1,36 @@
 import 'package:go_router/go_router.dart';
-import '../../features/navigation/presentation/offline_map_screen.dart';
-import '../../features/region_manager/presentation/region_list_screen.dart';
+import '../features/home/presentation/home_screen.dart';
+import '../features/track_selection/presentation/track_selection_screen.dart';
+import '../features/navigation/presentation/offline_map_screen.dart';
+import '../data/local/db/app_database.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/regions',
-      builder: (context, state) => const RegionListScreen(),
-    ),
+    // Home Screen - Mountain List (NEW ENTRY POINT)
     GoRoute(
       path: '/',
-      builder: (context, state) => const OfflineMapScreen(),
+      builder: (context, state) => const HomeScreen(),
+    ),
+
+    // Track Selection Screen
+    GoRoute(
+      path: '/tracks',
+      builder: (context, state) {
+        final mountain = state.extra as MountainRegion;
+        return TrackSelectionScreen(mountain: mountain);
+      },
+    ),
+
+    // Map Screen (with selected mountain and trail)
+    GoRoute(
+      path: '/map',
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>?;
+        // For now, pass the mountain and trail via the existing screen
+        // The screen will be updated to use these parameters
+        return const OfflineMapScreen();
+      },
     ),
   ],
 );

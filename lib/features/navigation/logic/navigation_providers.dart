@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/local/db/app_database.dart';
+import '../../../data/local/db/converters.dart';
 import 'deviation_engine.dart';
 import 'gps_state_machine.dart';
 import '../../../core/services/track_loader_service.dart';
@@ -76,6 +77,14 @@ final activePoisProvider = FutureProvider.family<List<PointOfInterest>, String>(
     (ref, mountainId) async {
   final db = ref.watch(databaseProvider);
   return db.navigationDao.getPoisForMountain(mountainId);
+});
+
+// Basecamps Provider (filtered POIs of type basecamp)
+final basecampsProvider = FutureProvider.family<List<PointOfInterest>, String>(
+    (ref, mountainId) async {
+  final db = ref.watch(databaseProvider);
+  final allPois = await db.navigationDao.getPoisForMountain(mountainId);
+  return allPois.where((poi) => poi.type == PoiType.basecamp).toList();
 });
 
 // Discovery Provider: Fetch ALL regions to show on global map
