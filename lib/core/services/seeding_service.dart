@@ -16,8 +16,8 @@ class SeedingService {
   final AppDatabase db;
   late final TrackLoaderService _trackLoader;
 
-  SeedingService(this.db) {
-    _trackLoader = TrackLoaderService(db);
+  SeedingService(this.db, {TrackLoaderService? trackLoader}) {
+    _trackLoader = trackLoader ?? TrackLoaderService(db);
   }
 
   /// Creates a TrailsCompanion with calculated bounding box
@@ -218,7 +218,7 @@ class SeedingService {
       'Grenden': 'assets/gpx/merbabu/Grenden.gpx',
     };
 
-    for (final entry in gpxFiles.entries) {
+    await Future.wait(gpxFiles.entries.map((entry) async {
       final trailName = entry.key;
       final assetPath = entry.value;
       final trailId = 'merbabu_${trailName.toLowerCase()}';
@@ -233,7 +233,7 @@ class SeedingService {
       } catch (e) {
         debugPrint('[Seeding] Error loading $trailName: $e');
       }
-    }
+    }));
   }
 
   /// 2. Mount Rinjani (Lombok)
