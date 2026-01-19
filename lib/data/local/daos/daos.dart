@@ -61,14 +61,61 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
   /// - 0.005 = ~500m
   /// - 0.01 = ~1.1km
   Future<List<Trail>> getNearbyTrails(double userLat, double userLng,
-      {double buffer = 0.005}) {
-    return (select(trails)
-          ..where((t) =>
-              t.minLat.isSmallerOrEqualValue(userLat + buffer) &
-              t.maxLat.isBiggerOrEqualValue(userLat - buffer) &
-              t.minLng.isSmallerOrEqualValue(userLng + buffer) &
-              t.maxLng.isBiggerOrEqualValue(userLng - buffer)))
-        .get();
+      {double buffer = 0.005}) async {
+    // Optimization: Select ID and bounds first to filter candidates
+    // This avoids parsing heavy geometry JSON for trails in the corners of the square bounding box
+    final candidatesQuery = selectOnly(trails)
+      ..addColumns([
+        trails.id,
+        trails.minLat,
+        trails.maxLat,
+        trails.minLng,
+        trails.maxLng
+      ])
+      ..where(trails.minLat.isSmallerOrEqualValue(userLat + buffer) &
+          trails.maxLat.isBiggerOrEqualValue(userLat - buffer) &
+          trails.minLng.isSmallerOrEqualValue(userLng + buffer) &
+          trails.maxLng.isBiggerOrEqualValue(userLng - buffer));
+
+    final candidates = await candidatesQuery.get();
+
+    final validIds = <String>[];
+    final bufferSq = buffer * buffer;
+
+    for (final row in candidates) {
+      final id = row.read(trails.id)!;
+      final minLat = row.read(trails.minLat)!;
+      final maxLat = row.read(trails.maxLat)!;
+      final minLng = row.read(trails.minLng)!;
+      final maxLng = row.read(trails.maxLng)!;
+
+      // Calculate squared distance from user point to the bounding box
+      double dLat = 0.0;
+      if (userLat < minLat) {
+        dLat = minLat - userLat;
+      } else if (userLat > maxLat) {
+        dLat = userLat - maxLat;
+      }
+
+      double dLng = 0.0;
+      if (userLng < minLng) {
+        dLng = minLng - userLng;
+      } else if (userLng > maxLng) {
+        dLng = userLng - maxLng;
+      }
+
+      final distSq = dLat * dLat + dLng * dLng;
+
+      if (distSq <= bufferSq) {
+        validIds.add(id);
+      }
+    }
+
+    if (validIds.isEmpty) {
+      return [];
+    }
+
+    return (select(trails)..where((t) => t.id.isIn(validIds))).get();
   }
 
   Future<List<PointOfInterest>> getPoisForMountain(String mountainId) {
