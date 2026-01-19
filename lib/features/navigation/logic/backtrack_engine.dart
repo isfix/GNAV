@@ -1,8 +1,36 @@
+import 'package:flutter/foundation.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:drift/drift.dart';
 import '../../../data/local/db/app_database.dart';
 import '../../../core/utils/geo_math.dart';
 import 'deviation_engine.dart';
+
+class BacktrackComputationData {
+  final List<UserBreadcrumb> history;
+  final List<Trail> trails;
+
+  BacktrackComputationData(this.history, this.trails);
+}
+
+List<LatLng>? _findSafePathInIsolate(BacktrackComputationData data) {
+  final retracePath = <LatLng>[];
+
+  // 2. Scan backwards
+  for (final breadcrumb in data.history) {
+    final loc = LatLng(breadcrumb.lat, breadcrumb.lng);
+    retracePath.add(loc);
+
+    // Calculate dist to trails
+    final dist = DeviationEngine.calculateMinDistance(loc, data.trails);
+
+    // If Safe (< 20m), we found the entry point. Return the path up to here.
+    if (dist <= DeviationEngine.thresholdSafe) {
+      return retracePath; // Contains points from Danger -> ... -> Safe
+    }
+  }
+
+  return null; // No safe point found in recent history
+}
 
 class BacktrackEngine {
   final AppDatabase db;
@@ -27,23 +55,7 @@ class BacktrackEngine {
 
     if (history.isEmpty) return null;
 
-    final retracePath = <LatLng>[];
-
-    // 2. Scan backwards
-    for (final breadcrumb in history) {
-      final loc = LatLng(breadcrumb.lat, breadcrumb.lng);
-      retracePath.add(loc);
-
-      // Calculate dist to trails
-      final dist = DeviationEngine.calculateMinDistance(loc, trails);
-
-      // If Safe (< 20m), we found the entry point. Return the path up to here.
-      if (dist <= DeviationEngine.thresholdSafe) {
-        return retracePath; // Contains points from Danger -> ... -> Safe
-      }
-    }
-
-    return null; // No safe point found in recent history
+    return compute(_findSafePathInIsolate, BacktrackComputationData(history, trails));
   }
 
   /// Calculates bearing from Start to End in Degrees (0-360)
