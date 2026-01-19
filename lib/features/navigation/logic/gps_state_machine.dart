@@ -17,11 +17,18 @@ class GpsStateMachine extends StateNotifier<GpsMode> {
 
   StreamSubscription? _accelSubscription;
   DateTime? _lastMotionTime;
+  DateTime _lastAccelCheck = DateTime.now();
   // Reduced threshold for demo/responsiveness, in real hiking maybe 5 mins
   static const int _ecoThresholdMinutes = 5;
 
   void _initAccelerometer() {
     _accelSubscription = accelerometerEventStream().listen((event) {
+      // Throttle: Process only 4 times per second
+      if (DateTime.now().difference(_lastAccelCheck).inMilliseconds < 250) {
+        return;
+      }
+      _lastAccelCheck = DateTime.now();
+
       final double magnitude =
           sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
 
