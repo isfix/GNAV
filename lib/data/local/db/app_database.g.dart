@@ -2365,6 +2365,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $UserBreadcrumbsTable(this);
   late final $OfflineMapPackagesTable offlineMapPackages =
       $OfflineMapPackagesTable(this);
+  late final Index trailsMountainIdx = Index('trails_mountain_idx',
+      'CREATE INDEX trails_mountain_idx ON trails (mountain_id)');
+  late final Index poiMountainIdx = Index('poi_mountain_idx',
+      'CREATE INDEX poi_mountain_idx ON points_of_interest (mountain_id)');
+  late final Index breadcrumbsSessionIdx = Index('breadcrumbs_session_idx',
+      'CREATE INDEX breadcrumbs_session_idx ON user_breadcrumbs (session_id, timestamp)');
+  late final Index breadcrumbsSyncedIdx = Index('breadcrumbs_synced_idx',
+      'CREATE INDEX breadcrumbs_synced_idx ON user_breadcrumbs (is_synced)');
   late final MountainDao mountainDao = MountainDao(this as AppDatabase);
   late final NavigationDao navigationDao = NavigationDao(this as AppDatabase);
   late final TrackingDao trackingDao = TrackingDao(this as AppDatabase);
@@ -2377,7 +2385,11 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         trails,
         pointsOfInterest,
         userBreadcrumbs,
-        offlineMapPackages
+        offlineMapPackages,
+        trailsMountainIdx,
+        poiMountainIdx,
+        breadcrumbsSessionIdx,
+        breadcrumbsSyncedIdx
       ];
 }
 

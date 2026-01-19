@@ -21,6 +21,7 @@ class MountainRegions extends Table {
 }
 
 // Table B: Trails
+@TableIndex(name: 'trails_mountain_idx', columns: {#mountainId})
 class Trails extends Table {
   TextColumn get id => text()();
   TextColumn get mountainId => text().references(MountainRegions, #id)();
@@ -56,6 +57,7 @@ class Trails extends Table {
 
 // Table C: PointsOfInterest
 @DataClassName('PointOfInterest')
+@TableIndex(name: 'poi_mountain_idx', columns: {#mountainId})
 class PointsOfInterest extends Table {
   TextColumn get id => text()();
   TextColumn get mountainId => text().references(MountainRegions, #id)();
@@ -72,6 +74,8 @@ class PointsOfInterest extends Table {
 }
 
 // Table D: UserBreadcrumbs
+@TableIndex(name: 'breadcrumbs_session_idx', columns: {#sessionId, #timestamp})
+@TableIndex(name: 'breadcrumbs_synced_idx', columns: {#isSynced})
 class UserBreadcrumbs extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get sessionId => text()();
