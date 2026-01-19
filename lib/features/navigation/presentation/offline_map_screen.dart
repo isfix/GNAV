@@ -61,7 +61,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   final _hapticController = HapticCompassController();
 
   // Compass State
-  double _compassHeading = 0.0;
+  final ValueNotifier<double> _compassHeading = ValueNotifier(0.0);
   StreamSubscription<CompassEvent>? _compassSubscription;
 
   // Search State
@@ -88,9 +88,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     // 4. Initialize Compass
     _compassSubscription = FlutterCompass.events?.listen((event) {
       if (mounted && event.heading != null) {
-        setState(() {
-          _compassHeading = event.heading!;
-        });
+        _compassHeading.value = event.heading!;
         // Haptic feedback if near target
         // _hapticController.checkHeading(_compassHeading, targetBearing);
       }
@@ -641,6 +639,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   void dispose() {
     _simTimer?.cancel();
     _compassSubscription?.cancel();
+    _compassHeading.dispose();
     mapLayerService.detach();
     super.dispose();
   }
