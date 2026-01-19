@@ -46,8 +46,11 @@ class DeviationEngine {
       for (int i = 0; i < points.length - 1; i++) {
         final p1 = points[i];
         final p2 = points[i + 1];
-        final dist =
-            GeoMath.distanceToSegment(userLoc, p1.toLatLng(), p2.toLatLng());
+        // Use raw coordinates to avoid TrailPoint.toLatLng() allocation
+        final dist = GeoMath.distanceToSegmentRaw(
+            userLoc.latitude, userLoc.longitude,
+            p1.lat, p1.lng,
+            p2.lat, p2.lng);
         if (dist < minDistance) {
           minDistance = dist;
         }
