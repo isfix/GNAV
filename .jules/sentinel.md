@@ -1,0 +1,4 @@
+## 2024-05-23 - Zip Slip Vulnerability in Archive Extraction
+**Vulnerability:** Found a potential "Zip Slip" vulnerability in `lib/core/services/routing_initialization_service.dart`. The `ZipDecoder` was extracting files using `file.name` without validating if the resulting path was within the intended target directory. A malicious zip file could contain entries like `../../etc/passwd` to overwrite sensitive files.
+**Learning:** Even when processing trusted assets (like bundled zip files), it is best practice to sanitize extraction paths to prevent future vulnerabilities if the input source changes (e.g., user-downloaded files).
+**Prevention:** Always normalize and validate that the destination path starts with the intended target directory before writing files during extraction. Used `p.normalize(filePath).startsWith(p.normalize(targetPath))` check.

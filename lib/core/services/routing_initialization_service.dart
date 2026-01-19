@@ -189,6 +189,14 @@ Future<void> _extractZipInIsolate(_ExtractParams params) async {
   for (final file in archive) {
     final filePath = p.join(params.targetPath, file.name);
 
+    // SECURITY: Prevent Zip Slip (directory traversal)
+    final canonicalPath = p.normalize(filePath);
+    final canonicalTarget = p.normalize(params.targetPath);
+    if (!canonicalPath.startsWith(canonicalTarget)) {
+      debugPrint('Skipping malicious zip entry: ${file.name}');
+      continue;
+    }
+
     if (file.isFile) {
       final outFile = File(filePath);
       await outFile.create(recursive: true);
