@@ -6,6 +6,7 @@ import '../../../data/local/db/converters.dart';
 import 'deviation_engine.dart';
 import 'gps_state_machine.dart';
 import '../../../core/services/track_loader_service.dart';
+import 'routing/routing_engine.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -122,3 +123,23 @@ final dangerZonesProvider = Provider<List<List<LatLng>>>((ref) {
   }
   return [];
 });
+
+// --- ROUTING ENGINE ---
+
+/// Provides the RoutingEngine initialized with the active mountain's trails.
+/// Rebuilds automatically when [activeMountainIdProvider] changes.
+final routingEngineProvider = Provider<RoutingEngine>((ref) {
+  final engine = RoutingEngine();
+  final mountainId = ref.watch(activeMountainIdProvider);
+  final trailsAsync = ref.watch(activeTrailsProvider(mountainId));
+
+  // Initialize graph if trails are loaded
+  if (trailsAsync.value != null) {
+    engine.initializeGraph(trailsAsync.value!);
+  }
+
+  return engine;
+});
+
+/// Holds the currently calculated route path (if any).
+final routePathProvider = StateProvider<List<LatLng>?>((ref) => null);

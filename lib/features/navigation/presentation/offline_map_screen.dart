@@ -11,12 +11,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
 // INTERNAL IMPORTS
-import '../../../data/local/db/converters.dart'; // For PoiType if needed
 import '../../../data/local/db/app_database.dart';
 import '../../../../core/services/seeding_service.dart';
 import '../../../../core/services/background_service.dart';
 import '../logic/navigation_providers.dart';
-import '../logic/gps_state_machine.dart';
 import '../logic/haptic_compass_controller.dart';
 import '../logic/deviation_engine.dart';
 import '../logic/backtrack_engine.dart';
@@ -26,13 +24,11 @@ import '../../../core/services/map_layer_service.dart';
 
 // WIDGET IMPORTS (REFACTORED)
 import 'widgets/atoms/off_trail_warning_badge.dart';
-import 'widgets/atoms/compass_bearing.dart';
 import 'widgets/controls/map_search_bar.dart';
 import 'widgets/controls/map_side_controls.dart';
 import 'widgets/controls/map_style_selector.dart';
 import 'widgets/sheets/navigation_sheet.dart';
 import 'widgets/sheets/search_overlay.dart';
-import 'widgets/sheets/region_preview_sheet.dart';
 import 'widgets/sheets/mountain_detail_sheet.dart';
 import 'widgets/sheets/basecamp_preview_sheet.dart';
 
@@ -223,6 +219,21 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
             );
           }
         }
+      }
+    });
+
+    // 9. Listen for Calculated Routes
+    ref.listenManual(routePathProvider, (previous, next) {
+      if (next != null) {
+        mapLayerService.drawRoute(next);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Route calculated! Follow the dashed line.')),
+          );
+        }
+      } else {
+        mapLayerService.clearRoute();
       }
     });
   }
@@ -781,6 +792,40 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     );
   }
 
+  Future<void> _handleMapLongPress(LatLng destination) async {
+    final userLoc = ref.read(userLocationProvider).value;
+    if (userLoc == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Waiting for GPS location...')),
+      );
+      return;
+    }
+
+    final start = LatLng(userLoc.lat, userLoc.lng);
+
+    // Calculate Route
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Calculating route...')),
+    );
+
+    // Run in background / ensure it doesn't block too much
+    // Since RoutingEngine is synchronous (fast for <10k nodes), we can call directly.
+    final engine = ref.read(routingEngineProvider);
+    final path = engine.findRoute(start, destination);
+
+    if (path != null) {
+      ref.read(routePathProvider.notifier).state = path;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'No trail route found to this location. Try tapping closer to a trail.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _stopSimulation();
@@ -846,6 +891,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   _drawMapLayers();
                 },
                 onMapClick: (point, latLng) => _handleMapTap(latLng),
+                onMapLongClick: (point, latLng) => _handleMapLongPress(latLng),
               ),
 
             // 2. SEARCH BAR OR OVERLAY

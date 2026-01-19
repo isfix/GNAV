@@ -1,0 +1,108 @@
+import 'package:collection/collection.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+import '../../../../data/local/db/app_database.dart';
+import 'topology_builder.dart';
+
+class RoutingEngine {
+  Map<String, RoutingNode> _graph = {};
+
+  /// Rebuilds the graph from trails. Call this on mountain region change.
+  void initializeGraph(List<Trail> trails) {
+    _graph = TopologyBuilder.buildGraph(trails);
+  }
+
+  /// Finds the shortest path between two points.
+  ///
+  /// 1. Snaps start/end to nearest nodes in the graph.
+  /// 2. Runs A* algorithm.
+  /// 3. Returns list of LatLngs representing the path.
+  List<LatLng>? findRoute(LatLng start, LatLng end) {
+    if (_graph.isEmpty) return null;
+
+    final startNode = _findNearestNode(start);
+    final endNode = _findNearestNode(end);
+
+    if (startNode == null || endNode == null) return null;
+    if (startNode.id == endNode.id) return [start];
+
+    // A* Algorithm
+    // Open Set: Nodes to visit, ordered by fScore (priority)
+    final openSet =
+        PriorityQueue<_NodeWrapper>((a, b) => a.fScore.compareTo(b.fScore));
+
+    // Cost from start to node
+    final gScore = <String, double>{};
+
+    // Predecessor map to reconstruct path
+    final cameFrom = <String, RoutingNode>{};
+
+    // Initialize
+    gScore[startNode.id] = 0;
+    openSet.add(_NodeWrapper(startNode, 0 + _heuristic(startNode, endNode)));
+
+    while (openSet.isNotEmpty) {
+      final current = openSet.removeFirst().node;
+
+      if (current.id == endNode.id) {
+        return _reconstructPath(cameFrom, current);
+      }
+
+      for (final edge in current.edges) {
+        final neighbor = edge.toNode;
+        final tentativeGScore = gScore[current.id]! + edge.weight;
+
+        if (tentativeGScore < (gScore[neighbor.id] ?? double.infinity)) {
+          cameFrom[neighbor.id] = current;
+          gScore[neighbor.id] = tentativeGScore;
+          final fScore = tentativeGScore + _heuristic(neighbor, endNode);
+
+          // Note: PriorityQueue doesn't support updateKey, so we just add.
+          // visited check ideally handles duplicates, or we accept minor overhead.
+          openSet.add(_NodeWrapper(neighbor, fScore));
+        }
+      }
+    }
+
+    return null; // No path found
+  }
+
+  RoutingNode? _findNearestNode(LatLng point) {
+    RoutingNode? bestNode;
+    double minDist = double.infinity;
+
+    // TODO: Use a Spatial Index (KdTree) for large graphs.
+    // For <5000 points, Iteration is acceptable (<5ms).
+    for (final node in _graph.values) {
+      final dist = TopologyBuilder.calculateDistance(
+          node, RoutingNode('temp', point.latitude, point.longitude));
+      if (dist < minDist) {
+        minDist = dist;
+        bestNode = node;
+      }
+    }
+    // Only snap if within reasonable distance (e.g. 1km)
+    if (minDist > 1000) return null;
+
+    return bestNode;
+  }
+
+  double _heuristic(RoutingNode a, RoutingNode b) {
+    return TopologyBuilder.calculateDistance(a, b);
+  }
+
+  List<LatLng> _reconstructPath(
+      Map<String, RoutingNode> cameFrom, RoutingNode current) {
+    final totalPath = <LatLng>[current.toLatLng()];
+    while (cameFrom.containsKey(current.id)) {
+      current = cameFrom[current.id]!;
+      totalPath.add(current.toLatLng());
+    }
+    return totalPath.reversed.toList();
+  }
+}
+
+class _NodeWrapper {
+  final RoutingNode node;
+  final double fScore;
+  _NodeWrapper(this.node, this.fScore);
+}

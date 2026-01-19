@@ -25,6 +25,11 @@ class MapLayerService {
   bool _dangerZoneLayerAdded = false;
   bool _poiLayerAdded = false;
 
+  // Route Layer constants
+  static const String routeSourceId = 'route-source';
+  static const String routeLayerId = 'route-layer';
+  bool _routeLayerAdded = false;
+
   void attach(MapLibreMapController controller) {
     _controller = controller;
     _trailLayerAdded = false;
@@ -551,6 +556,67 @@ class MapLayerService {
       }
     } catch (e) {
       debugPrint('Error clearing markers: $e');
+    }
+  }
+
+  /// Draws the calculated route path on the map
+  Future<void> drawRoute(List<LatLng> path) async {
+    if (_controller == null || path.isEmpty) {
+      // If empty, clear existing route
+      await clearRoute();
+      return;
+    }
+
+    try {
+      final coordinates = path.map((p) => [p.longitude, p.latitude]).toList();
+      final geoJson = {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {},
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': coordinates,
+            }
+          }
+        ]
+      };
+
+      if (!_routeLayerAdded) {
+        await _controller!.addGeoJsonSource(routeSourceId, geoJson);
+        await _controller!.addLineLayer(
+          routeSourceId,
+          routeLayerId,
+          LineLayerProperties(
+            lineColor: '#00BFFF', // Deep Sky Blue
+            lineWidth: 4.0,
+            lineDasharray: [2, 2], // Dashed line
+            lineCap: 'round',
+            lineJoin: 'round',
+          ),
+        );
+        _routeLayerAdded = true;
+      } else {
+        await _controller!.setGeoJsonSource(routeSourceId, geoJson);
+      }
+    } catch (e) {
+      debugPrint('[MapLayerService] Error drawing route: $e');
+    }
+  }
+
+  /// Clears the route from the map
+  Future<void> clearRoute() async {
+    if (_controller == null || !_routeLayerAdded) return;
+    try {
+      // Set empty source instead of removing layer to avoid flickering/re-adding overhead
+      final emptyGeoJson = {
+        'type': 'FeatureCollection',
+        'features': <Map<String, dynamic>>[]
+      };
+      await _controller!.setGeoJsonSource(routeSourceId, emptyGeoJson);
+    } catch (e) {
+      debugPrint('[MapLayerService] Error clearing route: $e');
     }
   }
 }
