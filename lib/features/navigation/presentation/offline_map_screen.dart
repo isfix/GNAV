@@ -178,8 +178,27 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       );
 
       _processNavigationLogic(pt);
-      // TODO: PHASE 2 - MapLibre camera animation
-      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(pt, 16));
+
+      // PHASE 2 - MapLibre camera animation
+      // Calculate bearing for smooth rotation if we have history
+      double targetBearing = _mapController?.cameraPosition?.bearing ?? 0.0;
+
+      if (_simIndex >= 2) {
+        final prev = _simPath[_simIndex - 2];
+        targetBearing = GeoMath.bearing(prev, pt);
+      }
+
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: pt,
+            zoom: 17.0, // Closer zoom for navigation simulation
+            bearing: targetBearing,
+            tilt: 50.0, // Tactical 3D perspective
+          ),
+        ),
+        duration: const Duration(milliseconds: 500),
+      );
     });
   }
 
