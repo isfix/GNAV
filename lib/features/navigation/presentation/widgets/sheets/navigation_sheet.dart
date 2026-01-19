@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'dart:ui';
@@ -21,7 +22,7 @@ import '../atoms/sonic_beacon_button.dart';
 class NavigationSheet extends StatefulWidget {
   final SafetyStatus status;
   final UserBreadcrumb? userLoc;
-  final double heading;
+  final ValueListenable<double> heading;
   final Trail? trail;
   final VoidCallback onBacktrack;
   final VoidCallback onSimulateMenu;
@@ -144,38 +145,50 @@ class _NavigationSheetState extends State<NavigationSheet> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Transform.rotate(
-            angle: (widget.heading * (math.pi / 180) * -1),
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF0df259), width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                        color: const Color(0xFF0df259).withOpacity(0.2),
-                        blurRadius: 20)
-                  ]),
-              child: Stack(
-                children: [
-                  const Center(
-                      child: Icon(Icons.navigation,
-                          size: 60, color: Colors.white)),
-                  Align(
-                    alignment: Alignment.topCenter,
-                    child: Container(width: 4, height: 20, color: Colors.red),
-                  )
-                ],
-              ),
-            ),
+          ValueListenableBuilder<double>(
+            valueListenable: widget.heading,
+            builder: (context, headingValue, child) {
+              return Transform.rotate(
+                angle: (headingValue * (math.pi / 180) * -1),
+                child: Container(
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: const Color(0xFF0df259), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: const Color(0xFF0df259).withOpacity(0.2),
+                            blurRadius: 20)
+                      ]),
+                  child: Stack(
+                    children: [
+                      const Center(
+                          child: Icon(Icons.navigation,
+                              size: 60, color: Colors.white)),
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                            width: 4, height: 20, color: Colors.red),
+                      )
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
-          Text("${widget.heading.toStringAsFixed(0)}°",
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold)),
+          ValueListenableBuilder<double>(
+            valueListenable: widget.heading,
+            builder: (context, headingValue, child) {
+              return Text("${headingValue.toStringAsFixed(0)}°",
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold));
+            },
+          ),
           const SizedBox(height: 8),
           Text("ALT: ${widget.userLoc?.altitude?.toStringAsFixed(0) ?? '--'}m",
               style: const TextStyle(color: Colors.grey)),
