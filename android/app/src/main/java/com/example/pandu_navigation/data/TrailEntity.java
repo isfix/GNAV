@@ -1,9 +1,8 @@
 package com.example.pandu_navigation.data;
 
-import androidx.annotation.NonNull;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
-import androidx.room.ColumnInfo;
+import androidx.annotation.NonNull;
 
 @Entity(tableName = "trails")
 public class TrailEntity {
@@ -11,41 +10,39 @@ public class TrailEntity {
     @NonNull
     public String id;
 
-    @ColumnInfo(name = "mountain_id")
     public String mountainId;
-
     public String name;
 
-    @ColumnInfo(name = "geometry_json")
+    // Geometry stored as JSON string or Blob.
+    // For Native Logic, we might want raw bytes or stick to JSON if compatible with
+    // the Dart logic.
+    // The plan says "Mirror the Trails table".
+    // Dart uses JSON. Let's store JSON for now to allow simple passing to Flutter.
     public String geometryJson;
 
-    // Metadata
+    public int difficulty;
     public double distance;
-
-    @ColumnInfo(name = "elevation_gain")
     public double elevationGain;
 
-    public int difficulty;
-
-    @ColumnInfo(name = "summit_index")
-    public int summitIndex;
-
-    // Spatial Bounding Box
-    @ColumnInfo(name = "min_lat")
+    // Spatial Bounds for efficient querying
     public double minLat;
-    @ColumnInfo(name = "max_lat")
     public double maxLat;
-    @ColumnInfo(name = "min_lng")
     public double minLng;
-    @ColumnInfo(name = "max_lng")
     public double maxLng;
 
-    // Nearest Trail Optimization
-    @ColumnInfo(name = "start_lat")
-    public Double startLat;
-    @ColumnInfo(name = "start_lng")
-    public Double startLng;
-
-    @ColumnInfo(name = "is_official")
-    public boolean isOfficial;
+    public TrailEntity(@NonNull String id, String mountainId, String name, String geometryJson,
+            int difficulty, double distance, double elevationGain,
+            double minLat, double maxLat, double minLng, double maxLng) {
+        this.id = id;
+        this.mountainId = mountainId;
+        this.name = name;
+        this.geometryJson = geometryJson;
+        this.difficulty = difficulty;
+        this.distance = distance;
+        this.elevationGain = elevationGain;
+        this.minLat = minLat;
+        this.maxLat = maxLat;
+        this.minLng = minLng;
+        this.maxLng = maxLng;
+    }
 }

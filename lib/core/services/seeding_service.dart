@@ -1,12 +1,13 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:drift/drift.dart';
+
 import 'package:path/path.dart' as p;
 import 'package:flutter/services.dart'; // for rootBundle
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
+import '../utils/geo_math.dart';
 import 'track_loader_service.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,25 +63,24 @@ class SeedingService {
         summitIndex = i;
       }
 
-      // Distance & Elevation Gain
+      // Distance & Elevation Gain using proper Haversine
       if (i > 0) {
         final prevPoint = points[i - 1];
-        // Approximate distance using haversine would be better, but simplified here
-        final dLat =
-            (point.lat - prevPoint.lat) * 111320; // meters per degree lat
-        final dLng = (point.lng - prevPoint.lng) *
-            111320 *
-            0.85; // approx for Java latitude
-        distance += (dLat * dLat + dLng * dLng).abs();
+        // Use proper Haversine formula for accurate distance
+        final segmentDistance = GeoMath.distanceMetersRaw(
+          prevPoint.lat,
+          prevPoint.lng,
+          point.lat,
+          point.lng,
+        );
+        distance += segmentDistance;
 
-        if (point.elevation != null && prevPoint.elevation != null) {
-          final elevDiff = point.elevation! - prevPoint.elevation!;
+        if (point.elevation > 0 && prevPoint.elevation > 0) {
+          final elevDiff = point.elevation - prevPoint.elevation;
           if (elevDiff > 0) elevationGain += elevDiff;
         }
       }
     }
-    distance =
-        distance > 0 ? distance : 0; // sqrt would be needed for proper distance
 
     return TrailsCompanion(
       id: Value(id),
@@ -493,12 +493,12 @@ class SeedingService {
       const TrailPoint(-7.2391, 109.2199, 3428), // Summit
     ];
     await db.into(db.trails).insertOnConflictUpdate(_createTrailWithBounds(
-      id: 'slamet_bambangan',
-      mountainId: 'slamet',
-      name: 'Jalur Bambangan',
-      points: bambanganRoute,
-      difficulty: 4,
-    ));
+          id: 'slamet_bambangan',
+          mountainId: 'slamet',
+          name: 'Jalur Bambangan',
+          points: bambanganRoute,
+          difficulty: 4,
+        ));
   }
 
   /// 6. Mount Sumbing
@@ -521,12 +521,12 @@ class SeedingService {
       const TrailPoint(-7.3840, 110.0750, 3371), // Summit
     ];
     await db.into(db.trails).insertOnConflictUpdate(_createTrailWithBounds(
-      id: 'sumbing_garung',
-      mountainId: 'sumbing',
-      name: 'Jalur Garung',
-      points: garungRoute,
-      difficulty: 4,
-    ));
+          id: 'sumbing_garung',
+          mountainId: 'sumbing',
+          name: 'Jalur Garung',
+          points: garungRoute,
+          difficulty: 4,
+        ));
   }
 
   /// 7. Mount Arjuno
@@ -547,12 +547,12 @@ class SeedingService {
       const TrailPoint(-7.7656, 112.5800, 3339)
     ]; // Summit
     await db.into(db.trails).insertOnConflictUpdate(_createTrailWithBounds(
-      id: 'arjuno_tretes',
-      mountainId: 'arjuno',
-      name: 'Jalur Tretes',
-      points: tretesRoute,
-      difficulty: 4,
-    ));
+          id: 'arjuno_tretes',
+          mountainId: 'arjuno',
+          name: 'Jalur Tretes',
+          points: tretesRoute,
+          difficulty: 4,
+        ));
   }
 
   /// 8. Mount Raung

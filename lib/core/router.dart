@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/track_selection/presentation/track_selection_screen.dart';
 import '../features/track_selection/presentation/stitch_home_screen.dart';
+import '../features/track_selection/presentation/stitch_track_selection_screen.dart';
 import '../features/navigation/presentation/stitch_map_screen.dart';
 import '../data/local/db/app_database.dart';
 
@@ -14,13 +15,19 @@ final appRouter = GoRouter(
       builder: (context, state) => const StitchHomeScreen(),
     ),
 
+    // Stitch Track Selection Screen (new premium design)
+    GoRoute(
+      path: '/tracks',
+      builder: (context, state) => const StitchTrackSelectionScreen(),
+    ),
+
     // Stitch Map Screen (Merbabu_6 Design)
     GoRoute(
       path: '/map',
       builder: (context, state) {
-        // Can unpack extra args if needed, but StitchMapScreen handles itself for now
-        // final args = state.extra as Map<String, dynamic>?;
-        return const StitchMapScreen();
+        final extra = state.extra as Map<String, dynamic>?;
+        final trail = extra?['trail'] as Trail?;
+        return StitchMapScreen(trail: trail);
       },
     ),
 
@@ -32,7 +39,7 @@ final appRouter = GoRouter(
 
     // Track Selection Screen (Legacy)
     GoRoute(
-      path: '/tracks',
+      path: '/legacy-tracks',
       builder: (context, state) {
         final mountain = state.extra as MountainRegion;
         return TrackSelectionScreen(mountain: mountain);

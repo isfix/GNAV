@@ -78,4 +78,6 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("androidx.concurrent:concurrent-futures:1.1.0")
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    implementation("com.google.code.gson:gson:2.10.1")
 }
+

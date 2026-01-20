@@ -1,0 +1,36 @@
+{
+    "version": 1,
+    "mountains": [
+        {
+            "id": "merbabu",
+            "name": "Mt. Merbabu",
+            "region": "Central Java",
+            "difficulty": "Hard",
+            "description": "A popular stratovolcano in Central Java with stunning savanna views.",
+            "mbtiles_path": "assets/tiles/merbabu.mbtiles",
+            "poi_file": "assets/gpx/merbabu/merbabu_tags.gpx",
+            "tracks": [
+                {
+                    "name": "Via Selo",
+                    "file": "assets/gpx/merbabu/Selo.gpx"
+                },
+                {
+                    "name": "Via Thekelan",
+                    "file": "assets/gpx/merbabu/Thekelan.gpx"
+                },
+                {
+                    "name": "Via Suwanting",
+                    "file": "assets/gpx/merbabu/Suwanting.gpx"
+                },
+                {
+                    "name": "Via Wekas",
+                    "file": "assets/gpx/merbabu/Wekas.gpx"
+                },
+                {
+                    "name": "Via Cuntel",
+                    "file": "assets/gpx/merbabu/Cuntel.gpx"
+                }
+            ]
+        }
+    ]
+}

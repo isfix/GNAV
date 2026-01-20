@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/local/db/converters.dart';
 import '../../../data/local/db/app_database.dart';
 
-/// Service for managing dynamic map layers on MapLibre.
 /// This handles trail polylines, POI markers, danger zones, etc.
 class MapLayerService {
   MapLibreMapController? _controller;
@@ -103,114 +103,172 @@ class MapLayerService {
     }
   }
 
-  /// Draws trail polylines on the map
-  /// If [highlightTrailId] is provided, that trail is drawn with a thicker, brighter line
+  /// Draws trail polylines on the map with difficulty-based color coding
+  /// If [highlightTrailId] is provided, that trail is drawn with a thicker line
   Future<void> drawTrails(List<Trail> trails,
       {String? highlightTrailId}) async {
     if (_controller == null || trails.isEmpty) return;
 
     try {
-      // Separate highlighted and regular trails
-      final regularFeatures = <Map<String, dynamic>>[];
+      final features = <Map<String, dynamic>>[];
+
+      // Highlight features (entire trail)
       final highlightFeatures = <Map<String, dynamic>>[];
 
       for (final trail in trails) {
-        final points = trail.geometryJson as List<TrailPoint>?;
-        if (points == null || points.isEmpty) continue;
+        final points = trail.geometryJson;
+        if (points.isEmpty) continue;
 
-        final coordinates = points.map((p) => p.coordinates).toList();
-
-        final feature = {
-          'type': 'Feature',
-          'properties': {
-            'id': trail.id,
-            'name': trail.name,
-            'difficulty': trail.difficulty ?? 3,
-          },
-          'geometry': {'type': 'LineString', 'coordinates': coordinates},
-        };
-
+        // 1. Add highlight feature (if applicable)
         if (trail.id == highlightTrailId) {
-          highlightFeatures.add(feature);
-        } else {
-          regularFeatures.add(feature);
+          final coordinates = points.map((p) => p.coordinates).toList();
+          highlightFeatures.add({
+            'type': 'Feature',
+            'properties': {'id': trail.id, 'type': 'highlight'},
+            'geometry': {'type': 'LineString', 'coordinates': coordinates},
+          });
+        }
+
+        // 2. Segmentize trail by difficulty for detailed coloring
+        var currentSegmentCoords = <List<dynamic>>[];
+        // Default to trail level difficulty if point doesn't have it
+        int currentDifficulty = points.first.difficulty > 0
+            ? points.first.difficulty
+            : trail.difficulty;
+
+        // Start the first segment
+        currentSegmentCoords.add(points.first.coordinates);
+
+        for (int i = 1; i < points.length; i++) {
+          final p = points[i];
+          final difficulty = p.difficulty > 0
+              ? p.difficulty
+              : trail.difficulty; // Fallback to trail diff
+
+          if (difficulty != currentDifficulty) {
+            // End current segment
+            // We duplicate the last point of the previous segment as the start of the next
+            // to ensure visual continuity (no gaps).
+            // Add current segment to features
+            features.add({
+              'type': 'Feature',
+              'properties': {
+                'id': trail.id,
+                'difficulty': currentDifficulty,
+              },
+              'geometry': {
+                'type': 'LineString',
+                'coordinates': List.from(currentSegmentCoords), // Reset list
+              },
+            });
+
+            // Start new segment
+            currentSegmentCoords = [points[i - 1].coordinates, p.coordinates];
+            currentDifficulty = difficulty;
+          } else {
+            currentSegmentCoords.add(p.coordinates);
+          }
+        }
+
+        // Add final segment
+        if (currentSegmentCoords.length > 1) {
+          features.add({
+            'type': 'Feature',
+            'properties': {
+              'id': trail.id,
+              'difficulty': currentDifficulty,
+            },
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': currentSegmentCoords,
+            },
+          });
         }
       }
 
-      // Regular trails (muted green)
-      final regularGeoJson = {
-        'type': 'FeatureCollection',
-        'features': regularFeatures
-      };
+      final geoJson = {'type': 'FeatureCollection', 'features': features};
 
-      // Highlighted trail (bright green, thicker)
       final highlightGeoJson = {
         'type': 'FeatureCollection',
         'features': highlightFeatures
       };
 
-      // Add or update regular trails source
       if (!_trailLayerAdded) {
-        await _controller!.addGeoJsonSource(trailSourceId, regularGeoJson);
+        // --- 1. Regular Trail Layer ---
+        await _controller!.addGeoJsonSource(trailSourceId, geoJson);
 
-        // 1. Trail Line Layer
         await _controller!.addLineLayer(
           trailSourceId,
           trailLayerId,
           LineLayerProperties(
-            lineColor: '#00FFFF', // Neon Cyan
+            lineColor: [
+              'match', ['get', 'difficulty'],
+              1, '#00FFFF', // Cyan (Easy)
+              2, '#0df259', // Green (Moderate)
+              3, '#FFFF00', // Yellow (Hard)
+              4, '#FFAA00', // Orange (Severe)
+              5, '#FF3B30', // Red (Extreme)
+              '#0df259' // Default
+            ],
             lineWidth: 3.0,
             lineCap: 'round',
             lineJoin: 'round',
-            lineOpacity: highlightTrailId != null ? 0.3 : 0.9,
+            lineOpacity: highlightTrailId != null ? 0.4 : 1.0,
           ),
         );
 
-        // 2. Trail Label Layer (Temporary disabled to fix Font Crash)
-        /*
-        await _controller!.addSymbolLayer(
-          trailSourceId,
-          'trail-label-layer',
-          const SymbolLayerProperties(
-            textField: ['get', 'name'],
-            symbolPlacement: 'line',
-            textAnchor: 'center',
-            textSize: 12,
-            textAllowOverlap: false,
-            textIgnorePlacement: false,
-            textColor: '#00FFFF',
-            textHaloColor: '#000000',
-            textHaloWidth: 2,
-          ),
-        );
-        */
+        // --- 2. Highlight Layer (Behind regular trails to create glow, or on top?)
+        // Logic: Highlight selected trail.
+        // If we draw on top, we obscure the difficulty colors.
+        // Better to draw a "Core" highlight or "Outer" glow.
+        // Let's draw an OUTER GLOW (thicker line underneath)
 
-        // Add highlighted trail layer (on top)
         if (highlightFeatures.isNotEmpty) {
           await _controller!
               .addGeoJsonSource('${trailSourceId}_highlight', highlightGeoJson);
+
+          // Highlight Glow (Underneath)
           await _controller!.addLineLayer(
             '${trailSourceId}_highlight',
             '${trailLayerId}_highlight',
             const LineLayerProperties(
-              lineColor: '#FFD700', // Gold for highlight
+              lineColor: '#FFFFFF', // White Halo
               lineWidth: 6.0,
+              lineOpacity: 0.5,
+              lineBlur: 1.0,
               lineCap: 'round',
               lineJoin: 'round',
             ),
+            belowLayerId: trailLayerId, // Draw BELOW the colored segments
           );
         }
 
         _trailLayerAdded = true;
       } else {
-        await _controller!.setGeoJsonSource(trailSourceId, regularGeoJson);
+        await _controller!.setGeoJsonSource(trailSourceId, geoJson);
+
         if (highlightFeatures.isNotEmpty) {
           try {
             await _controller!.setGeoJsonSource(
                 '${trailSourceId}_highlight', highlightGeoJson);
-          } catch (_) {
-            // Fallback if cleaned up
-          }
+            // Update opacity of main layer if highlighting
+            await _controller!.setLayerProperties(
+                trailLayerId,
+                LineLayerProperties(
+                  lineOpacity: highlightTrailId != null ? 0.4 : 1.0,
+                ));
+          } catch (_) {}
+        } else {
+          // Clear highlight source
+          try {
+            await _controller!.setGeoJsonSource('${trailSourceId}_highlight',
+                {'type': 'FeatureCollection', 'features': []});
+            await _controller!.setLayerProperties(
+                trailLayerId,
+                const LineLayerProperties(
+                  lineOpacity: 1.0,
+                ));
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -309,7 +367,32 @@ class MapLayerService {
     }
   }
 
-  /// Adds POI markers using symbols
+  /// Loads POI icons from assets into the map controller
+  Future<void> _loadPoiIcons() async {
+    if (_controller == null) return;
+
+    final icons = ['camp', 'water', 'danger', 'summit', 'pos', 'default'];
+
+    for (final icon in icons) {
+      try {
+        // Check if image is already added to avoid reloading
+        // MapLibre doesn't have a simple hasImage check exposed easily in all versions,
+        // but adding same image name again is usually fine or overwrites.
+        // We catch error if file missing.
+
+        final ByteData bytes =
+            await rootBundle.load('assets/icons/poi/$icon.png');
+        final Uint8List list = bytes.buffer.asUint8List();
+        await _controller!.addImage('icon_$icon', list);
+        debugPrint('[MapLayer] Loaded icon: $icon');
+      } catch (e) {
+        debugPrint(
+            '[MapLayer] Failed to load icon $icon. Using default logic.');
+      }
+    }
+  }
+
+  /// Adds POI markers using symbols with dynamic icons
   Future<void> addPOIMarkers(List<PointOfInterest> pois) async {
     if (_controller == null) return;
 
@@ -326,13 +409,16 @@ class MapLayerService {
         return;
       }
 
+      // Ensure icons are loaded
+      await _loadPoiIcons();
+
       final features = pois.map((poi) {
         return {
           'type': 'Feature',
           'id': poi.id,
           'properties': {
             'name': poi.name,
-            'type': poi.type.index,
+            'type': poi.type, // Pass string type directly
           },
           'geometry': {
             'type': 'Point',
@@ -346,24 +432,22 @@ class MapLayerService {
       if (!_poiLayerAdded) {
         await _controller!.addGeoJsonSource(poiSourceId, geojson);
 
-        // 1. Circle Layer (The "Icon")
-        await _controller!.addCircleLayer(
-          poiSourceId,
-          'poi-circle-layer',
-          const CircleLayerProperties(
-            circleColor: '#ffffff',
-            circleRadius: 6,
-            circleStrokeWidth: 2,
-            circleStrokeColor: '#000000',
-          ),
-        );
-
-        // 2. Text Layer (Temporary disabled to fix Font Crash)
-        /*
+        // Symbol Layer with Dynamic Icon Logic
         await _controller!.addSymbolLayer(
           poiSourceId,
           poiLayerId,
-          const SymbolLayerProperties(
+          SymbolLayerProperties(
+            iconImage: [
+              'match', ['get', 'type'],
+              'camp', 'icon_camp',
+              'water', 'icon_water',
+              'danger', 'icon_danger',
+              'summit', 'icon_summit',
+              'pos', 'icon_pos',
+              'icon_default' // Fallback
+            ],
+            iconSize: 1.0,
+            iconAllowOverlap: true,
             textField: ['get', 'name'],
             textSize: 11,
             textOffset: [0, 1.5],
@@ -373,7 +457,6 @@ class MapLayerService {
             textHaloWidth: 1.5,
           ),
         );
-        */
         _poiLayerAdded = true;
       } else {
         await _controller!.setGeoJsonSource(poiSourceId, geojson);

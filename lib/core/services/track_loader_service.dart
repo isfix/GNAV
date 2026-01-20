@@ -2,9 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:gpx/gpx.dart';
-import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
-import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:xml/xml.dart' as xml;
 import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 import '../utils/geo_math.dart';
@@ -12,6 +11,15 @@ import '../utils/geo_math.dart';
 /// Top-level function to ensure it can be run in a separate isolate.
 Gpx _parseGpx(String xmlString) {
   return GpxReader().fromString(xmlString);
+}
+
+/// Parsed extension data from GPX track points
+class TrackPointExtensions {
+  final String? surface;
+  final String? sacScale;
+  final String? highway;
+
+  const TrackPointExtensions({this.surface, this.sacScale, this.highway});
 }
 
 class TrackLoaderService {
@@ -35,13 +43,28 @@ class TrackLoaderService {
     try {
       // 1. Read & Parse GPX
       final xmlString = await rootBundle.loadString(assetPath);
+
+      // Validation: Check for empty file
+      if (xmlString.trim().isEmpty) {
+        debugPrint('[TrackLoader] Error: Empty GPX file: $assetPath');
+        return;
+      }
+
       // GpxReader().fromString is a CPU-bound synchronous operation that can freeze the UI.
       // We run it in a separate isolate to avoid blocking the main thread.
       final gpx = await compute(_parseGpx, xmlString);
 
+      // Validation: Check for empty content
+      if (gpx.trks.isEmpty && gpx.wpts.isEmpty) {
+        debugPrint(
+            '[TrackLoader] Warning: GPX has no tracks or waypoints: $assetPath');
+        return;
+      }
+
       // 2. Process Tracks -> Trails table
       if (gpx.trks.isNotEmpty) {
-        await _processTrack(gpx, mountainId, trailId);
+        // We need raw XML to extract extensions (gpx package doesn't expose them)
+        await _processTrackWithExtensions(gpx, xmlString, mountainId, trailId);
       }
 
       // 3. Process Waypoints -> PointsOfInterest table
@@ -50,16 +73,27 @@ class TrackLoaderService {
       }
 
       debugPrint('[TrackLoader] Loaded GPX: $assetPath');
-    } catch (e) {
-      debugPrint('[TrackLoader] Error loading GPX: $e');
+    } on FormatException catch (e) {
+      debugPrint('[TrackLoader] Invalid GPX format in $assetPath: $e');
+    } catch (e, stackTrace) {
+      debugPrint('[TrackLoader] Error loading GPX $assetPath: $e');
+      debugPrint('[TrackLoader] StackTrace: $stackTrace');
       rethrow;
     }
   }
 
-  /// Process GPX tracks into Trails table with spatial bounds
-  Future<void> _processTrack(Gpx gpx, String mountainId, String trailId) async {
+  /// Process GPX tracks with extension data extraction
+  Future<void> _processTrackWithExtensions(
+    Gpx gpx,
+    String rawXml,
+    String mountainId,
+    String trailId,
+  ) async {
     final trk = gpx.trks.first;
     final trailName = trk.name ?? trailId;
+
+    // Parse XML to extract extensions
+    final extensionsMap = _extractExtensionsFromXml(rawXml);
 
     // Collect all points from all segments
     final allPoints = <Wpt>[];
@@ -67,7 +101,10 @@ class TrackLoaderService {
       allPoints.addAll(seg.trkpts);
     }
 
-    if (allPoints.isEmpty) return;
+    if (allPoints.isEmpty) {
+      debugPrint('[TrackLoader] Warning: Track has no points');
+      return;
+    }
 
     // Calculate stats and spatial bounds
     double totalDist = 0;
@@ -81,6 +118,9 @@ class TrackLoaderService {
     double minLng = 180.0;
     double maxLng = -180.0;
 
+    // Track difficulty from SAC scales
+    final sacScales = <SacScale>[];
+
     final dbPoints = <TrailPoint>[];
 
     for (int i = 0; i < allPoints.length; i++) {
@@ -89,8 +129,25 @@ class TrackLoaderService {
       final lon = p.lon ?? 0.0;
       final ele = p.ele ?? 0.0;
 
-      // Convert to TrailPoint for DB
-      dbPoints.add(TrailPoint(lat, lon, ele));
+      // Skip invalid points
+      if (lat == 0.0 && lon == 0.0) continue;
+
+      // Get extension data for this point (by index)
+      final ext = extensionsMap[i] ?? const TrackPointExtensions();
+      final sacScale = parseSacScale(ext.sacScale);
+      if (sacScale != null) {
+        sacScales.add(sacScale);
+      }
+
+      // Convert to TrailPoint for DB with extended metadata
+      dbPoints.add(TrailPoint(
+        lat,
+        lon,
+        ele,
+        surface: ext.surface,
+        sacScale: sacScale,
+        highway: ext.highway,
+      ));
 
       // Update spatial bounds
       if (lat < minLat) minLat = lat;
@@ -101,15 +158,17 @@ class TrackLoaderService {
       // Detect summit (highest point)
       if (ele > maxElevation) {
         maxElevation = ele;
-        summitIndex = i;
+        summitIndex = dbPoints.length - 1;
       }
 
-      // Calculate distance and elevation gain
+      // Calculate distance and elevation gain using Haversine
       if (i > 0) {
         final prev = allPoints[i - 1];
-        final d = GeoMath.distanceMeters(
-          LatLng(prev.lat ?? 0, prev.lon ?? 0),
-          LatLng(lat, lon),
+        final d = GeoMath.distanceMetersRaw(
+          prev.lat ?? 0,
+          prev.lon ?? 0,
+          lat,
+          lon,
         );
         totalDist += d;
 
@@ -120,13 +179,16 @@ class TrackLoaderService {
       }
     }
 
+    // Calculate difficulty from collected SAC scales
+    final difficulty = _calculateOverallDifficulty(sacScales);
+
     // Insert into Trails table
     final trailEntry = TrailsCompanion(
       id: drift.Value(trailId),
       mountainId: drift.Value(mountainId),
       name: drift.Value(trailName),
       geometryJson: drift.Value(dbPoints),
-      difficulty: const drift.Value(3),
+      difficulty: drift.Value(difficulty),
       distance: drift.Value(totalDist),
       elevationGain: drift.Value(elevationGain),
       summitIndex: drift.Value(summitIndex),
@@ -142,7 +204,72 @@ class TrackLoaderService {
 
     await _db.navigationDao.insertTrail(trailEntry);
     debugPrint(
-        '[TrackLoader] Trail saved: $trailName (${dbPoints.length} points, ${(totalDist / 1000).toStringAsFixed(1)}km)');
+        '[TrackLoader] Trail saved: $trailName (${dbPoints.length} points, ${(totalDist / 1000).toStringAsFixed(1)}km, difficulty: $difficulty)');
+  }
+
+  /// Extracts Garmin TrackPointExtension data from raw GPX XML
+  Map<int, TrackPointExtensions> _extractExtensionsFromXml(String rawXml) {
+    final result = <int, TrackPointExtensions>{};
+
+    try {
+      final document = xml.XmlDocument.parse(rawXml);
+      final trkpts = document.findAllElements('trkpt');
+
+      int index = 0;
+      for (final trkpt in trkpts) {
+        String? surface;
+        String? sacScale;
+        String? highway;
+
+        // Look for extensions
+        final extensions = trkpt.findElements('extensions').firstOrNull;
+        if (extensions != null) {
+          // Navigate to gpxtpx:TrackPointExtension / gpxtpx:Extensions
+          for (final child
+              in extensions.descendants.whereType<xml.XmlElement>()) {
+            final localName = child.name.local.toLowerCase();
+            final text = child.innerText.trim();
+
+            if (localName == 'surface' && text.isNotEmpty) {
+              surface = text;
+            } else if (localName == 'sac_scale' && text.isNotEmpty) {
+              sacScale = text;
+            } else if (localName == 'highway' && text.isNotEmpty) {
+              highway = text;
+            }
+          }
+        }
+
+        if (surface != null || sacScale != null || highway != null) {
+          result[index] = TrackPointExtensions(
+            surface: surface,
+            sacScale: sacScale,
+            highway: highway,
+          );
+        }
+
+        index++;
+      }
+    } catch (e) {
+      debugPrint('[TrackLoader] Error parsing extensions: $e');
+    }
+
+    return result;
+  }
+
+  /// Calculate overall trail difficulty from collected SAC scales
+  int _calculateOverallDifficulty(List<SacScale> scales) {
+    if (scales.isEmpty) return 2; // Default moderate
+
+    // Use the maximum difficulty encountered (most challenging segment)
+    int maxDifficulty = 1;
+    for (final scale in scales) {
+      final diff = sacScaleToDifficulty(scale);
+      if (diff > maxDifficulty) {
+        maxDifficulty = diff;
+      }
+    }
+    return maxDifficulty;
   }
 
   /// Process GPX waypoints into PointsOfInterest table with Smart Tagging
@@ -155,10 +282,13 @@ class TrackLoaderService {
         final lon = wpt.lon ?? 0.0;
         final ele = wpt.ele ?? 0.0;
 
+        // Get description from desc or cmt fields
+        final description = wpt.desc ?? wpt.cmt ?? '';
+
         if (lat == 0 || lon == 0) continue;
 
-        // Smart Tagging: Determine POI type from name
-        final poiType = _categorizeWaypoint(name);
+        // Smart Tagging: Determine POI type from name and description
+        final poiType = _categorizeWaypoint(name, description);
 
         // Generate unique ID
         final poiId =
@@ -172,6 +302,8 @@ class TrackLoaderService {
           lng: drift.Value(lon),
           type: drift.Value(poiType),
           elevation: drift.Value(ele),
+          metadataJson: drift.Value(
+              description.isNotEmpty ? '{"desc":"$description"}' : null),
         );
 
         batch.insert(_db.pointsOfInterest, poiEntry,
@@ -181,42 +313,72 @@ class TrackLoaderService {
     debugPrint('[TrackLoader] POIs saved: ${waypoints.length}');
   }
 
-  /// Smart Tagging: Categorizes waypoints based on name patterns
-  PoiType _categorizeWaypoint(String name) {
+  /// Smart Tagging: Categorizes waypoints based on name and description patterns
+  PoiType _categorizeWaypoint(String name, String description) {
     final lowerName = name.toLowerCase();
-
-    // Basecamp patterns (Indonesian + English)
-    if (lowerName.contains('basecamp') ||
-        lowerName.contains('base camp') ||
-        lowerName.contains('pos pendakian') ||
-        lowerName.contains('starting point')) {
-      return PoiType.basecamp;
-    }
+    final lowerDesc = description.toLowerCase();
+    final combined = '$lowerName $lowerDesc';
 
     // Summit patterns
-    if (lowerName.contains('summit') ||
-        lowerName.contains('puncak') ||
-        lowerName.contains('top') ||
-        lowerName.contains('peak')) {
+    if (combined.contains('summit') ||
+        combined.contains('puncak') ||
+        combined.contains('top') ||
+        combined.contains('peak') ||
+        combined.contains('syarif')) {
       return PoiType.summit;
     }
 
+    // Basecamp patterns (Indonesian + English)
+    if (combined.contains('basecamp') ||
+        combined.contains('base camp') ||
+        combined.contains('pos pendakian') ||
+        combined.contains('starting point') ||
+        combined.contains('pendaftaran')) {
+      return PoiType.basecamp;
+    }
+
     // Water source patterns
-    if (lowerName.contains('water') ||
-        lowerName.contains('sumber air') ||
-        lowerName.contains('mata air') ||
-        lowerName.contains('spring')) {
+    if (combined.contains('water') ||
+        combined.contains('sumber air') ||
+        combined.contains('mata air') ||
+        combined.contains('spring') ||
+        combined.contains('telaga')) {
       return PoiType.water;
     }
 
     // Emergency/danger patterns
-    if (lowerName.contains('emergency') ||
-        lowerName.contains('danger') ||
-        lowerName.contains('bahaya')) {
+    if (combined.contains('emergency') ||
+        combined.contains('danger') ||
+        combined.contains('bahaya') ||
+        combined.contains('evac')) {
       return PoiType.dangerZone;
     }
 
-    // Default: Shelter (covers Pos, Viewpoint, Rest Area, etc.)
+    // Viewpoint patterns
+    if (combined.contains('view') ||
+        combined.contains('lookout') ||
+        combined.contains('panorama') ||
+        combined.contains('puncak mati')) {
+      return PoiType.viewpoint;
+    }
+
+    // Campsite patterns
+    if (combined.contains('camp') ||
+        combined.contains('bivouac') ||
+        combined.contains('shelter') ||
+        combined.contains('pos')) {
+      return PoiType.campsite;
+    }
+
+    // Junction patterns
+    if (combined.contains('junction') ||
+        combined.contains('intersection') ||
+        combined.contains('simpang') ||
+        combined.contains('fork')) {
+      return PoiType.junction;
+    }
+
+    // Default: Shelter (covers Rest Area, etc.)
     return PoiType.shelter;
   }
 

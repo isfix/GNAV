@@ -1,73 +1,68 @@
 package com.example.pandu_navigation.logic;
 
 public class KalmanFilter {
-    private double lat = 0.0;
-    private double lng = 0.0;
-    private double pLat = 1.0;
-    private double pLng = 1.0;
-    private final double q; // Process noise
-    private final double r; // Measurement noise
-    private boolean initialized = false;
+    private long timestamp; // millis
+    private double lat;
+    private double lng;
+    private float variance; // P matrix. Initial estimate of error.
 
-    public KalmanFilter(double q, double r) {
-        this.q = q;
-        this.r = r;
+    public KalmanFilter(float variance) {
+        this.variance = variance;
+        this.timestamp = System.currentTimeMillis();
+        this.lat = 0;
+        this.lng = 0;
     }
 
-    public static KalmanFilter createForest() {
-        return new KalmanFilter(0.000001, 0.001);
+    public void setState(double lat, double lng, long timestamp, float accuracy) {
+        this.lat = lat;
+        this.lng = lng;
+        this.timestamp = timestamp;
+        this.variance = accuracy * accuracy;
     }
 
-    public static KalmanFilter createOpenTerrain() {
-        return new KalmanFilter(0.00005, 0.00005);
-    }
-
-    public static class Result {
-        public final double lat;
-        public final double lng;
-
-        public Result(double lat, double lng) {
-            this.lat = lat;
-            this.lng = lng;
-        }
-    }
-
-    public Result process(double rawLat, double rawLng) {
-        if (!initialized) {
-            lat = rawLat;
-            lng = rawLng;
-            initialized = true;
-            return new Result(lat, lng);
+    /**
+     * Kalman filter processing for latitude and longitude (simplified).
+     *
+     * @param latMeasurement  New latitude measurement
+     * @param lngMeasurement  New longitude measurement
+     * @param accuracy        Accuracy of measurement in meters
+     * @param timestampMillis Timestamp of measurement
+     */
+    public void process(double latMeasurement, double lngMeasurement, float accuracy, long timestampMillis) {
+        if (accuracy < 1)
+            accuracy = 1;
+        if (variance < 0) {
+            // Uninitialized
+            setState(latMeasurement, lngMeasurement, timestampMillis, accuracy);
+            return;
         }
 
-        // Prediction
-        double pLatPredicted = pLat + q;
-        double pLngPredicted = pLng + q;
+        long timeInc = timestampMillis - this.timestamp;
+        if (timeInc > 0) {
+            // Apply process noise if time has passed (model uncertainty increases with
+            // time)
+            variance += timeInc * 0.001f /* Q_METERS_PER_SECOND */ * timeInc * 0.001f;
+            this.timestamp = timestampMillis;
+        }
 
-        // Kalman Gain
-        double kLat = pLatPredicted / (pLatPredicted + r);
-        double kLng = pLngPredicted / (pLngPredicted + r);
+        // Kalman gain K = P / (P + R)
+        // R = accuracy * accuracy
+        float k = variance / (variance + accuracy * accuracy);
 
-        // Update
-        lat = lat + kLat * (rawLat - lat);
-        lng = lng + kLng * (rawLng - lng);
+        // Update state
+        lat += k * (latMeasurement - lat);
+        lng += k * (lngMeasurement - lng);
 
-        // Covariance Update
-        pLat = (1 - kLat) * pLatPredicted;
-        pLng = (1 - kLng) * pLngPredicted;
-
-        return new Result(lat, lng);
+        // Update covariance
+        // P = (1 - K) * P
+        variance = (1 - k) * variance;
     }
 
-    public void reset() {
-        lat = 0.0;
-        lng = 0.0;
-        pLat = 1.0;
-        pLng = 1.0;
-        initialized = false;
+    public double getLat() {
+        return lat;
     }
 
-    public boolean isInitialized() {
-        return initialized;
+    public double getLng() {
+        return lng;
     }
 }

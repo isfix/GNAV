@@ -1,68 +1,70 @@
 package com.example.pandu_navigation.logic;
 
 public class GeoMath {
-    private static final double EARTH_RADIUS_METERS = 6371000.0;
 
-    private static double degToRad(double deg) {
-        return deg * Math.PI / 180.0;
-    }
-
-    private static double radToDeg(double rad) {
-        return rad * 180.0 / Math.PI;
-    }
+    private static final double EARTH_RADIUS = 6371000; // meters
 
     /**
-     * Calculates the Great Circle distance (Haversine) between two coordinates in
-     * meters.
+     * Calculates distance between two points in meters using Haversine formula.
      */
     public static double distanceMeters(double lat1, double lng1, double lat2, double lng2) {
-        double phi1 = degToRad(lat1);
-        double phi2 = degToRad(lat2);
-        double dLat = degToRad(lat2 - lat1);
-        double dLon = degToRad(lng2 - lng1);
-
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return EARTH_RADIUS_METERS * c;
+        return EARTH_RADIUS * c;
     }
 
     /**
-     * Calculates the perpendicular distance from Point P to the Line Segment
-     * defined by A and B.
+     * Calculates the shortest distance from a point (pLat, pLng) to a line segment
+     * defined by (startLat, startLng) and (endLat, endLng).
      */
-    public static double distanceToSegment(double latP, double lngP, double latA, double lngA, double latB,
-            double lngB) {
-        double rLatP = degToRad(latP);
-        double rLngP = degToRad(lngP);
-        double rLatA = degToRad(latA);
-        double rLngA = degToRad(lngA);
-        double rLatB = degToRad(latB);
-        double rLngB = degToRad(lngB);
+    public static double distanceToSegment(double pLat, double pLng,
+            double startLat, double startLng,
+            double endLat, double endLng) {
 
-        // Cartesian approximation for projection factor 't'
-        double x = (rLngB - rLngA) * Math.cos((rLatA + rLatB) / 2);
-        double y = rLatB - rLatA;
-        double lenSq = x * x + y * y;
+        // Convert to Cartesian approximation for small distances (valid for trail
+        // proximity)
+        // Or use proper cross-track distance.
+        // For efficiency in loop, we often use a specialized function.
+        // Here is a robust implementation for local scale (Euclidean approximation
+        // projected):
 
-        if (lenSq == 0)
-            return distanceMeters(latP, lngP, latA, lngA);
+        double x = pLng;
+        double y = pLat;
+        double x1 = startLng;
+        double y1 = startLat;
+        double x2 = endLng;
+        double y2 = endLat;
 
-        double rx = (rLngP - rLngA) * Math.cos((rLatA + rLatB) / 2);
-        double ry = rLatP - rLatA;
+        double A = x - x1;
+        double B = y - y1;
+        double C = x2 - x1;
+        double D = y2 - y1;
 
-        double t = (rx * x + ry * y) / lenSq;
+        double dot = A * C + B * D;
+        double len_sq = C * C + D * D;
 
-        if (t < 0)
-            return distanceMeters(latP, lngP, latA, lngA);
-        if (t > 1)
-            return distanceMeters(latP, lngP, latB, lngB);
+        double param = -1;
+        if (len_sq != 0) // in case of 0 length line
+            param = dot / len_sq;
 
-        // Project back to coords
-        double latClosest = latA + (latB - latA) * t;
-        double lngClosest = lngA + (lngB - lngA) * t;
+        double xx, yy;
 
-        return distanceMeters(latP, lngP, latClosest, lngClosest);
+        if (param < 0) {
+            xx = x1;
+            yy = y1;
+        } else if (param > 1) {
+            xx = x2;
+            yy = y2;
+        } else {
+            xx = x1 + param * C;
+            yy = y1 + param * D;
+        }
+
+        // Return distance from Point (x,y) to Closest Point (xx,yy)
+        return distanceMeters(y, x, yy, xx);
     }
 }

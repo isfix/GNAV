@@ -66,6 +66,9 @@ flutter:
     - assets/map_data/
     - assets/gpx/merbabu/
     - assets/fonts/
+    - assets/config/
+    - assets/icons/poi/
+
 
   fonts:
     - family: Space Grotesk

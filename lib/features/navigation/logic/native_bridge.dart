@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../data/local/db/app_database.dart';
+import '../../../data/local/db/converters.dart';
 
 class NativeBridge {
   static const MethodChannel _commandChannel =
@@ -9,26 +11,72 @@ class NativeBridge {
   static const EventChannel _updateChannel =
       EventChannel('com.pandu.nav/updates');
 
-  static Future<void> startService() async {
-    await _commandChannel.invokeMethod('startService');
+  static Future<void> startService({String? trailId}) async {
+    await _commandChannel.invokeMethod('startService', {'trailId': trailId});
   }
 
   static Future<void> stopService() async {
     await _commandChannel.invokeMethod('stopService');
   }
 
-  static Future<int> loadGpx(String filePath, String mountainId) async {
-    final int count = await _commandChannel.invokeMethod('loadGpx', {
-      'filePath': filePath,
-      'mountainId': mountainId,
-    });
-    return count;
+  static Future<List<Trail>> getTrails(String mountainId) async {
+    try {
+      final String jsonStr = await _commandChannel.invokeMethod('getTrails', {
+        'mountainId': mountainId,
+      });
+      final List<dynamic> list = jsonDecode(jsonStr);
+      return list.map((e) => _parseNativeTrail(e)).toList();
+    } catch (e) {
+      print('Error parsing native trails: $e');
+      return [];
+    }
+  }
+
+  static Trail _parseNativeTrail(dynamic rawJson) {
+    final Map<String, dynamic> json =
+        (rawJson is String) ? jsonDecode(rawJson) : rawJson;
+
+    List<TrailPoint> geometry = [];
+    if (json['geometryJson'] != null) {
+      try {
+        final List<dynamic> rawPoints = jsonDecode(json['geometryJson']);
+        geometry = rawPoints.map((p) {
+          final lat = (p[1] as num).toDouble();
+          final lng = (p[0] as num).toDouble();
+          final ele = (p.length > 2 ? (p[2] as num).toDouble() : 0.0);
+          return TrailPoint(lat, lng, ele);
+        }).toList();
+      } catch (e) {
+        print("Error parsing geometry: $e");
+      }
+    }
+
+    return Trail(
+      id: json['id'],
+      mountainId: json['mountainId'],
+      name: json['name'],
+      distance: (json['distance'] as num?)?.toDouble() ?? 0.0,
+      elevationGain: (json['elevationGain'] as num?)?.toDouble() ?? 0.0,
+      difficulty: (json['difficulty'] as num?)?.toInt() ?? 1,
+      geometryJson: geometry,
+      minLat: (json['minLat'] as num?)?.toDouble() ?? 0,
+      maxLat: (json['maxLat'] as num?)?.toDouble() ?? 0,
+      minLng: (json['minLng'] as num?)?.toDouble() ?? 0,
+      maxLng: (json['maxLng'] as num?)?.toDouble() ?? 0,
+      isOfficial: true,
+      summitIndex: 0,
+    );
   }
 
   static Stream<Map<String, dynamic>> get navigationUpdates {
     return _updateChannel.receiveBroadcastStream().map((event) {
+      if (event is Map) {
+        return Map<String, dynamic>.from(event);
+      }
       if (event is String) {
-        return jsonDecode(event) as Map<String, dynamic>;
+        try {
+          return jsonDecode(event) as Map<String, dynamic>;
+        } catch (_) {}
       }
       return {};
     });

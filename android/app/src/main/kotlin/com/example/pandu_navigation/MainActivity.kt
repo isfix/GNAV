@@ -9,9 +9,10 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.example.pandu_navigation.logic.GpxImporter
+import com.example.pandu_navigation.service.PanduService
 import com.example.pandu_navigation.data.AppDatabase
-import androidx.room.Room
+import com.example.pandu_navigation.data.AssetConfigLoader
+import com.google.gson.Gson
 import java.util.concurrent.Executors
 
 class MainActivity: FlutterActivity() {
@@ -19,32 +20,40 @@ class MainActivity: FlutterActivity() {
     private val UPDATE_CHANNEL = "com.pandu.nav/updates"
 
     private var eventSink: EventChannel.EventSink? = null
-    private val executor = Executors.newSingleThreadExecutor()
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        
+        // Trigger initial data seed
+        val db = AppDatabase.getDatabase(applicationContext)
+        val loader = AssetConfigLoader(applicationContext, db.navigationDao())
+        loader.loadInitialData()
 
         // 1. Command Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, COMMAND_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startService" -> {
+                    val trailId = call.argument<String>("trailId")
                     val intent = Intent(this, PanduService::class.java)
+                    intent.action = "START_TRACKING"
+                    if (trailId != null) {
+                        intent.putExtra("trailId", trailId)
+                    }
                     startForegroundService(intent)
                     result.success(null)
                 }
                 "stopService" -> {
                     val intent = Intent(this, PanduService::class.java)
-                    intent.action = "STOP"
+                    intent.action = "STOP_TRACKING"
                     startForegroundService(intent)
                     result.success(null)
                 }
-                "loadGpx" -> {
-                    val filePath = call.argument<String>("filePath")
+                "getTrails" -> {
                     val mountainId = call.argument<String>("mountainId")
-                    if (filePath != null && mountainId != null) {
-                        loadGpxBackground(filePath, mountainId, result)
+                    if (mountainId != null) {
+                       getTrailsBackground(mountainId, result)
                     } else {
-                        result.error("INVALID_ARGS", "Path or ID missing", null)
+                       result.error("INVALID", "No mountainId", null)
                     }
                 }
                 else -> result.notImplemented()
@@ -67,26 +76,36 @@ class MainActivity: FlutterActivity() {
         )
     }
 
-    private fun loadGpxBackground(path: String, mountainId: String, result: MethodChannel.Result) {
+    private fun getTrailsBackground(mountainId: String, result: MethodChannel.Result) {
+        val executor = Executors.newSingleThreadExecutor()
         executor.execute {
             try {
-                val db = Room.databaseBuilder(applicationContext,
-                    AppDatabase::class.java, "pandu_db.sqlite")
-                    .build()
+                val db = AppDatabase.getDatabase(applicationContext)
+                val trails = db.navigationDao().getTrailsByMountain(mountainId)
                 
-                val trails = GpxImporter.parse(path, mountainId)
-                db.navigationDao().insertTrails(trails)
+                val gson = Gson()
+                val jsonStr = gson.toJson(trails)
                 
-                runOnUiThread { result.success(trails.size) }
+                runOnUiThread {
+                    result.success(jsonStr) 
+                }
             } catch (e: Exception) {
-                runOnUiThread { result.error("PARSE_ERROR", e.message, null) }
+                runOnUiThread { result.error("DB_ERROR", e.message, null) }
             }
         }
     }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val payload = intent.getStringExtra("payload")
+            val lat = intent.getDoubleExtra("lat", 0.0)
+            val lng = intent.getDoubleExtra("lng", 0.0)
+            val status = intent.getStringExtra("status") ?: "SAFE"
+            
+            val payload = mapOf(
+                "lat" to lat,
+                "lng" to lng,
+                "status" to status
+            )
             eventSink?.success(payload)
         }
     }
@@ -94,7 +113,7 @@ class MainActivity: FlutterActivity() {
     private fun registerReceiver() {
         LocalBroadcastManager.getInstance(this).registerReceiver(
             receiver,
-            IntentFilter(PanduService.ACTION_BROADCAST)
+            IntentFilter("PanduNavigationUpdate")
         )
     }
 
