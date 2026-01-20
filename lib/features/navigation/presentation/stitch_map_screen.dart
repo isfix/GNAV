@@ -206,7 +206,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
               child: Row(
                 children: [
-                  _buildHudItem('DIST. TRAIL', deviationDist.toStringAsFixed(0),
+                  _buildHudItem('DIST. TRAIL', deviationDist.toStringAsFixed(1),
                       unit: 'm', isHighlight: isDanger),
                   Container(width: 1, height: 40, color: Colors.white10),
                   _buildHudItem('STATUS', statusRaw,

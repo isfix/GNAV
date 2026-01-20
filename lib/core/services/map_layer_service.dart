@@ -118,9 +118,7 @@ class MapLayerService {
         final points = trail.geometryJson as List<TrailPoint>?;
         if (points == null || points.isEmpty) continue;
 
-        final coordinates = points
-            .map((p) => p.coordinates)
-            .toList();
+        final coordinates = points.map((p) => p.coordinates).toList();
 
         final feature = {
           'type': 'Feature',
@@ -168,7 +166,8 @@ class MapLayerService {
           ),
         );
 
-        // 2. Trail Label Layer (NEW)
+        // 2. Trail Label Layer (Temporary disabled to fix Font Crash)
+        /*
         await _controller!.addSymbolLayer(
           trailSourceId,
           'trail-label-layer',
@@ -184,6 +183,7 @@ class MapLayerService {
             textHaloWidth: 2,
           ),
         );
+        */
 
         // Add highlighted trail layer (on top)
         if (highlightFeatures.isNotEmpty) {
@@ -358,7 +358,8 @@ class MapLayerService {
           ),
         );
 
-        // 2. Text Layer (The Label)
+        // 2. Text Layer (Temporary disabled to fix Font Crash)
+        /*
         await _controller!.addSymbolLayer(
           poiSourceId,
           poiLayerId,
@@ -372,6 +373,7 @@ class MapLayerService {
             textHaloWidth: 1.5,
           ),
         );
+        */
         _poiLayerAdded = true;
       } else {
         await _controller!.setGeoJsonSource(poiSourceId, geojson);
@@ -389,6 +391,7 @@ class MapLayerService {
       for (final region in regions) {
         if (region.lat == 0 || region.lng == 0) continue;
 
+        /*
         await _controller!.addSymbol(
           SymbolOptions(
             geometry: LatLng(region.lat, region.lng),
@@ -401,6 +404,7 @@ class MapLayerService {
             textHaloWidth: 1,
           ),
         );
+        */
       }
     } catch (e) {
       debugPrint('Error adding region markers: $e');
@@ -520,12 +524,9 @@ class MapLayerService {
           ),
           unclusteredLabelLayerId: '${mountainMarkerLayerId}_labels',
           unclusteredLabelProps: const SymbolLayerProperties(
-            textField: ['get', 'name'],
-            textOffset: [0, 1.8],
-            textSize: 13,
-            textColor: '#ffffff',
-            textHaloColor: '#000000',
-            textHaloWidth: 2,
+            // textField: ['get', 'name'], // Disabled to prevent font crash
+            iconImage: "marker-15",
+            iconSize: 1.5,
             textAllowOverlap: false,
           ),
           clusterLayerId: mountainClusterLayerId,
@@ -585,12 +586,9 @@ class MapLayerService {
           ),
           unclusteredLabelLayerId: '${basecampMarkerLayerId}_labels',
           unclusteredLabelProps: const SymbolLayerProperties(
-            textField: ['get', 'name'],
-            textOffset: [0, 1.5],
-            textSize: 11,
-            textColor: '#ffdc00',
-            textHaloColor: '#000000',
-            textHaloWidth: 1.5,
+            // textField: ['get', 'name'], // Disabled to prevent font crash
+            iconImage: "marker-15",
+            iconSize: 1.2,
             textAllowOverlap: false,
           ),
           clusterLayerId: basecampClusterLayerId,
