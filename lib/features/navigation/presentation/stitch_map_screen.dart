@@ -7,6 +7,8 @@ import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch
 import 'package:pandu_navigation/features/navigation/presentation/offline_map_screen.dart';
 import 'package:pandu_navigation/features/navigation/logic/native_bridge.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 class StitchMapScreen extends ConsumerStatefulWidget {
   const StitchMapScreen({super.key});
 
@@ -24,8 +26,45 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
   @override
   void initState() {
     super.initState();
-    // Start native tracking service when screen opens
-    NativeBridge.startService();
+    // Check permissions before starting service to avoid crash on Android 14+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPermissionsAndStartService();
+    });
+  }
+
+  Future<void> _checkPermissionsAndStartService() async {
+    // Request location permissions (Fine + Coarse + Background if needed later)
+    // For Foreground Service Location, we need 'whenInUse' at minimum.
+    final status = await Permission.location.request();
+
+    if (status.isGranted) {
+      // Permission granted, safe to start the service
+      NativeBridge.startService();
+    } else if (status.isPermanentlyDenied) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Permission Required'),
+            content: const Text(
+                'Location permission is required for navigation and safety tracking. Please enable it in settings.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  openAppSettings();
+                },
+                child: const Text('Open Settings'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   @override
