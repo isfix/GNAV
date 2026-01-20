@@ -962,6 +962,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                 right: 16, // Top right
                 child: GlassFab(
                   icon: Icons.search,
+                  label: "Search",
                   onTap: () => setState(() => _isSearching = true),
                 ),
               ),
@@ -984,6 +985,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                 children: [
                   GlassFab(
                     icon: Icons.layers_outlined,
+                    label: "Map Layers",
                     onTap: () {
                       showModalBottomSheet(
                         context: context,
@@ -995,6 +997,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   const SizedBox(height: 16),
                   GlassFab(
                     icon: Icons.add,
+                    label: "Zoom In",
                     onTap: () {
                       _mapController?.animateCamera(CameraUpdate.zoomTo(
                           (_mapController?.cameraPosition?.zoom ?? 12) + 1));
@@ -1003,6 +1006,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   const SizedBox(height: 16),
                   GlassFab(
                     icon: Icons.remove,
+                    label: "Zoom Out",
                     onTap: () {
                       _mapController?.animateCamera(CameraUpdate.zoomTo(
                           (_mapController?.cameraPosition?.zoom ?? 12) - 1));
@@ -1011,6 +1015,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   const SizedBox(height: 16),
                   GlassFab(
                     icon: Icons.my_location,
+                    label: "My Location",
                     active: true, // Always show active color for primary action
                     onTap: () {
                       if (userLocAsync.value != null &&
@@ -1028,6 +1033,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                   const SizedBox(height: 16),
                   GlassFab(
                     icon: Icons.directions_walk, // Route/Track load
+                    label: "Load Route",
                     onTap: _showTrackSelectionDialog,
                   ),
                 ],

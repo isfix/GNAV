@@ -83,14 +83,15 @@ class CockpitHud extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildStat(Icons.height, "${altitude.toStringAsFixed(0)} m"),
+              _buildStat(Icons.height, "${altitude.toStringAsFixed(0)} m",
+                  "Altitude"),
               const SizedBox(width: 24),
-              _buildStat(
-                  Icons.explore_outlined, "${bearing.toStringAsFixed(0)}°"),
+              _buildStat(Icons.explore_outlined,
+                  "${bearing.toStringAsFixed(0)}°", "Bearing"),
               if (speed != null) ...[
                 const SizedBox(width: 24),
-                _buildStat(
-                    Icons.speed, "${(speed! * 3.6).toStringAsFixed(1)} km/h"),
+                _buildStat(Icons.speed,
+                    "${(speed! * 3.6).toStringAsFixed(1)} km/h", "Speed"),
               ],
             ],
           ),
@@ -99,24 +100,28 @@ class CockpitHud extends StatelessWidget {
     );
   }
 
-  Widget _buildStat(IconData icon, String value) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon,
-            size: 16,
-            color: const Color(0xFF0df259)), // Keep neon accent for data
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            fontFamily: 'monospace', // Tech feel
+  Widget _buildStat(IconData icon, String value, String label) {
+    return Semantics(
+      label: "$label: $value",
+      excludeSemantics: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon,
+              size: 16,
+              color: const Color(0xFF0df259)), // Keep neon accent for data
+          const SizedBox(width: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              fontFamily: 'monospace', // Tech feel
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -126,31 +131,47 @@ class GlassFab extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool active;
+  final String? label;
 
   const GlassFab({
     super.key,
     required this.icon,
     required this.onTap,
     this.active = false,
+    this.label,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: GlassContainer(
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        padding: EdgeInsets.zero,
-        color: active ? const Color(0xFF0df259).withOpacity(0.2) : null,
-        child: Center(
-          child: Icon(
-            icon,
-            color: active ? const Color(0xFF0df259) : Colors.white,
-            size: 24,
-          ),
+    Widget content = GlassContainer(
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      padding: EdgeInsets.zero,
+      color: active ? const Color(0xFF0df259).withOpacity(0.2) : null,
+      child: Center(
+        child: Icon(
+          icon,
+          color: active ? const Color(0xFF0df259) : Colors.white,
+          size: 24,
         ),
+      ),
+    );
+
+    if (label != null) {
+      content = Tooltip(
+        message: label!,
+        child: content,
+      );
+    }
+
+    return Semantics(
+      button: true,
+      label: label,
+      onTap: onTap,
+      child: GestureDetector(
+        onTap: onTap,
+        child: content,
       ),
     );
   }
