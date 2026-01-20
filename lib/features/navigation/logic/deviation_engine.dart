@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../data/local/db/converters.dart';
 import '../../../core/utils/geo_math.dart';
@@ -42,9 +43,38 @@ class DeviationEngine {
 
       // 2. Detailed Segment Check (only runs for nearby trails)
       final points = trail.geometryJson;
+
+      // Pre-calculate meters per degree for optimization
+      const double metersPerLat = 111320.0;
+      final double latRad = userLoc.latitude * math.pi / 180.0;
+      final double metersPerLng = 111320.0 * math.cos(latRad);
+
       for (int i = 0; i < points.length - 1; i++) {
         final p1 = points[i];
         final p2 = points[i + 1];
+
+        // Optimization: Bounding Box Check per segment
+        // If minDistance is already found, we can skip segments that are definitely farther away.
+        if (minDistance != double.infinity) {
+          final double minLat = p1.lat < p2.lat ? p1.lat : p2.lat;
+          final double maxLat = p1.lat > p2.lat ? p1.lat : p2.lat;
+          double dLat = 0.0;
+          if (userLoc.latitude < minLat) dLat = minLat - userLoc.latitude;
+          else if (userLoc.latitude > maxLat) dLat = userLoc.latitude - maxLat;
+
+          // Check latitude distance
+          if (dLat * metersPerLat > minDistance) continue;
+
+          final double minLng = p1.lng < p2.lng ? p1.lng : p2.lng;
+          final double maxLng = p1.lng > p2.lng ? p1.lng : p2.lng;
+          double dLng = 0.0;
+          if (userLoc.longitude < minLng) dLng = minLng - userLoc.longitude;
+          else if (userLoc.longitude > maxLng) dLng = userLoc.longitude - maxLng;
+
+          // Check longitude distance
+          if (dLng * metersPerLng > minDistance) continue;
+        }
+
         // Use raw coordinates to avoid TrailPoint.toLatLng() allocation
         final dist = GeoMath.distanceToSegmentRaw(
             userLoc.latitude, userLoc.longitude,
