@@ -8,12 +8,10 @@ import 'dart:async';
 import 'dart:math' show Point;
 import 'package:drift/drift.dart' as drift;
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 
 // INTERNAL IMPORTS
 import '../../../data/local/db/app_database.dart';
 import '../../../../core/services/seeding_service.dart';
-import '../../../../core/services/background_service.dart';
 import '../logic/navigation_providers.dart';
 import '../logic/haptic_compass_controller.dart';
 import '../logic/deviation_engine.dart';
@@ -38,11 +36,13 @@ import 'widgets/sheets/basecamp_preview_sheet.dart';
 class OfflineMapScreen extends ConsumerStatefulWidget {
   final String? mountainId;
   final String? trailId;
+  final bool isHeadless;
 
   const OfflineMapScreen({
     super.key,
     this.mountainId,
     this.trailId,
+    this.isHeadless = false,
   });
 
   @override
@@ -61,9 +61,6 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   List<LatLng> _simPath = [];
   final List<UserBreadcrumbsCompanion> _simBreadcrumbBuffer = [];
   static const int _simBatchSize = 5;
-
-  // Haptics
-  final _hapticController = HapticCompassController();
 
   // Compass State
   final ValueNotifier<double> _compassHeading = ValueNotifier(0.0);
@@ -102,7 +99,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     // 5. Load Map Style
     await _loadMapStyle();
 
-    // 6. Then check permissions for background service
+    // 6. Then check permissions for location (simplified)
     _checkPermissions();
     _checkBatteryOptimizations();
 
@@ -206,50 +203,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       });
     }
 
-    final service = FlutterBackgroundService();
-    if (!await service.isRunning()) {
-      await initializeBackgroundService();
-    }
-
-    // 8. Listen for Background Events (Safety Status)
-    service.on('safety_status').listen((event) {
-      if (event != null && mounted) {
-        final statusName = event['status'] as String?;
-        if (statusName != null) {
-          final status = SafetyStatus.values.firstWhere(
-            (e) => e.name == statusName,
-            orElse: () => SafetyStatus.safe,
-          );
-          ref.read(safetyStatusProvider.notifier).state = status;
-
-          if (status == SafetyStatus.danger) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content:
-                    Text('DANGER: You are off-trail! Check map immediately.'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 5),
-              ),
-            );
-          }
-        }
-      }
-    });
-
-    // 9. Listen for Calculated Routes
-    ref.listenManual(routePathProvider, (previous, next) {
-      if (next != null) {
-        mapLayerService.drawRoute(next);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Route calculated! Follow the dashed line.')),
-          );
-        }
-      } else {
-        mapLayerService.clearRoute();
-      }
-    });
+    // Native Service is started by StitchMapScreen parent
   }
 
   void _stopSimulation() {
@@ -851,167 +805,126 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final styleString = _styleString;
     final userLocAsync = ref.watch(userLocationProvider);
     final safetyStatus = ref.watch(safetyStatusProvider);
     final activeMountainId = ref.watch(activeMountainIdProvider);
     final trailsAsync = ref.watch(activeTrailsProvider(activeMountainId));
-    final backtrackPath = ref.watch(backtrackPathProvider);
     final backtrackTarget = ref.watch(backtrackTargetProvider);
-    final allMountainsAsync = ref.watch(allMountainsProvider);
-    final mapStyle = ref.watch(mapStyleProvider);
-    final dangerZones = ref.watch(dangerZonesProvider);
 
-    // Update User Location Layer (Side Effect)
-    ref.listen(userLocationProvider, (prev, next) {
-      if (next.value != null) {
-        mapLayerService.drawUserLocation(
-          LatLng(next.value!.lat, next.value!.lng),
-          _compassHeading.value,
-        );
+    // HEADLESS MODE: Return ONLY the Map Widget
+    if (widget.isHeadless) {
+      if (styleString == null) {
+        return const Center(child: CircularProgressIndicator());
       }
-    });
+      return _buildMapWidget(styleString);
+    }
 
-    // Heading Calculation (using GeoMath now)
+    // Heading Calculation
     double compassHeading = 0;
     if (backtrackTarget != null && userLocAsync.value != null) {
       final userPt = LatLng(userLocAsync.value!.lat, userLocAsync.value!.lng);
       compassHeading = GeoMath.bearing(userPt, backtrackTarget);
-
-      // Haptic Feedback
-      _hapticController.checkHeading(0.0, compassHeading);
     }
 
-    final isTactical = ref.watch(isTacticalModeProvider);
-
     return Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: const Color(0xFF050505),
-      endDrawer: _buildDevDrawer(),
-      body: ColorFiltered(
-        colorFilter: isTactical
-            ? const ColorFilter.mode(Colors.red, BlendMode.modulate)
-            : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-        child: Stack(
-          children: [
-            // 1. MAP LAYER (MapLibre - PHASE 2)
-            if (_styleString == null)
-              Container(color: const Color(0xFF050505)) // Loading placeholder
-            else
-              MapLibreMap(
-                // Using dynamic style string
-                styleString: _styleString!,
-                initialCameraPosition: const CameraPosition(
-                  target: LatLng(-7.453, 110.448), // Mt. Merbabu
-                  zoom: 12.0,
-                ),
-                myLocationEnabled: false, // Custom Rendering
-                myLocationRenderMode: MyLocationRenderMode.normal,
-                onMapCreated: (controller) {
-                  _mapController = controller;
-                  mapLayerService.attach(controller);
-                },
-                onStyleLoadedCallback: () {
-                  _drawMapLayers();
-                },
-                onUserLocationUpdated: (location) {},
-                onMapClick: (point, latLng) => _handleMapTap(latLng),
-                onMapLongClick: (point, latLng) => _handleMapLongPress(latLng),
-              ),
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // 1. MAP LAYER
+          if (styleString != null)
+            _buildMapWidget(styleString)
+          else
+            const Center(child: CircularProgressIndicator()),
 
-            // 2. HUD LAYER (Glassmorphism)
-            // Top Cockpit (Telemetry)
-            Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + 60),
-                child: CockpitHud(
-                  altitude: userLocAsync.value?.altitude ?? 0.0,
-                  bearing: compassHeading,
-                  speed: userLocAsync.value?.speed,
-                ),
+          // 2. HUD LAYER (Glass)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 60,
+            left: 16,
+            right: 16,
+            child: CockpitHud(
+              altitude: userLocAsync.value?.altitude ?? 0.0,
+              bearing: compassHeading,
+              speed: userLocAsync.value?.speed,
+            ),
+          ),
+
+          // 3. SEARCH & ACTIONS
+          if (_isSearching)
+            Positioned.fill(
+              child: SearchOverlay(
+                onClose: () => setState(() => _isSearching = false),
+                onSelect: (region) {
+                  setState(() => _isSearching = false);
+                  ref.read(activeMountainIdProvider.notifier).state = region.id;
+                  _mapController?.animateCamera(
+                    CameraUpdate.newLatLngZoom(
+                      LatLng(region.lat, region.lng),
+                      14,
+                    ),
+                  );
+                  if (!region.isDownloaded) {
+                    _downloadRegion(region.id);
+                  }
+                },
+              ),
+            )
+          else
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              right: 16,
+              child: GlassFab(
+                icon: Icons.search,
+                onTap: () => setState(() => _isSearching = true),
               ),
             ),
 
-            // 3. SEARCH & ACTIONS
-            if (_isSearching)
-              Positioned.fill(
-                child: SearchOverlay(
-                  onClose: () => setState(() => _isSearching = false),
-                  onSelect: (region) {
-                    // ... existing logic ...
-                    setState(() => _isSearching = false);
-                    ref.read(activeMountainIdProvider.notifier).state =
-                        region.id;
-                    _mapController?.animateCamera(
-                      CameraUpdate.newLatLngZoom(
-                        LatLng(region.lat, region.lng),
-                        14,
-                      ),
+          // 4. OFF TRAIL WARNING
+          if (safetyStatus == SafetyStatus.danger)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 10,
+              left: 0,
+              right: 0,
+              child: const Center(child: OffTrailWarningBadge()),
+            ),
+
+          // 5. SIDE CONTROLS
+          Positioned(
+            right: 16,
+            bottom: 240,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GlassFab(
+                  icon: Icons.layers_outlined,
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      builder: (ctx) => const MapStyleSelector(),
                     );
-                    if (!region.isDownloaded) {
-                      _downloadRegion(region.id);
-                    }
                   },
                 ),
-              )
-            else
-              // Search FAB (Glass)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 10,
-                right: 16, // Top right
-                child: GlassFab(
-                  icon: Icons.search,
-                  onTap: () => setState(() => _isSearching = true),
+                const SizedBox(height: 16),
+                GlassFab(
+                  icon: Icons.add,
+                  onTap: () {
+                    _mapController?.animateCamera(CameraUpdate.zoomTo(
+                        (_mapController?.cameraPosition?.zoom ?? 12) + 1));
+                  },
                 ),
-              ),
-
-            // 4. OFF TRAIL WARNING
-            if (safetyStatus == SafetyStatus.danger)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 10,
-                left: 0,
-                right: 0,
-                child: const Center(child: OffTrailWarningBadge()),
-              ),
-
-            // 5. SIDE CONTROLS (Glass Fabs)
-            Positioned(
-              right: 16,
-              bottom: 240,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GlassFab(
-                    icon: Icons.layers_outlined,
-                    onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        backgroundColor: Colors.transparent,
-                        builder: (ctx) => const MapStyleSelector(),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  GlassFab(
-                    icon: Icons.add,
-                    onTap: () {
-                      _mapController?.animateCamera(CameraUpdate.zoomTo(
-                          (_mapController?.cameraPosition?.zoom ?? 12) + 1));
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  GlassFab(
-                    icon: Icons.remove,
-                    onTap: () {
-                      _mapController?.animateCamera(CameraUpdate.zoomTo(
-                          (_mapController?.cameraPosition?.zoom ?? 12) - 1));
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  GlassFab(
+                const SizedBox(height: 16),
+                GlassFab(
+                  icon: Icons.remove,
+                  onTap: () {
+                    _mapController?.animateCamera(CameraUpdate.zoomTo(
+                        (_mapController?.cameraPosition?.zoom ?? 12) - 1));
+                  },
+                ),
+                const SizedBox(height: 16),
+                GlassFab(
                     icon: Icons.my_location,
-                    active: true, // Always show active color for primary action
+                    active: true,
                     onTap: () {
                       if (userLocAsync.value != null &&
                           _mapController != null) {
@@ -1023,32 +936,54 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                           ),
                         );
                       }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  GlassFab(
-                    icon: Icons.directions_walk, // Route/Track load
-                    onTap: _showTrackSelectionDialog,
-                  ),
-                ],
-              ),
+                    }),
+                const SizedBox(height: 16),
+                GlassFab(
+                  icon: Icons.directions_walk,
+                  onTap: _showTrackSelectionDialog,
+                ),
+              ],
             ),
+          ),
 
-            // 6. BOTTOM SHEET (Keep for now, maybe refactor later)
-            NavigationSheet(
-              status: safetyStatus,
-              userLoc: userLocAsync.value,
-              heading: _compassHeading,
-              trail:
-                  (trailsAsync.value != null && trailsAsync.value!.isNotEmpty)
-                      ? trailsAsync.value!.first
-                      : null,
-              onBacktrack: _activateBacktrack,
-              onSimulateMenu: () => Scaffold.of(context).openEndDrawer(),
-            ),
-          ],
-        ),
+          // 6. BOTTOM SHEET
+          NavigationSheet(
+            status: safetyStatus,
+            userLoc: userLocAsync.value,
+            heading: _compassHeading,
+            trail: (trailsAsync.value != null && trailsAsync.value!.isNotEmpty)
+                ? trailsAsync.value!.first
+                : null,
+            onBacktrack: _activateBacktrack,
+            onSimulateMenu: () => Scaffold.of(context).openEndDrawer(),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildMapWidget(String styleString) {
+    return MapLibreMap(
+      styleString: styleString,
+      initialCameraPosition: const CameraPosition(
+        target: LatLng(-7.453, 110.448), // Mt. Merbabu
+        zoom: 12.0,
+      ),
+      myLocationEnabled: _isLocationPermissionGranted,
+      myLocationRenderMode: MyLocationRenderMode.compass,
+      myLocationTrackingMode: MyLocationTrackingMode.tracking,
+      onMapCreated: (controller) {
+        _mapController = controller;
+        mapLayerService.attach(controller);
+      },
+      onStyleLoadedCallback: () {
+        _drawMapLayers();
+      },
+      onMapClick: (point, latLng) => _handleMapTap(latLng),
+      onMapLongClick: (point, latLng) => _handleMapLongPress(latLng),
+      trackCameraPosition: true,
+      compassEnabled: true,
+      compassViewPosition: CompassViewPosition.topRight,
     );
   }
 

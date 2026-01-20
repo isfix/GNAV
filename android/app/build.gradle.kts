@@ -74,4 +74,12 @@ dependencies {
     // reader-osm is NOT needed since we don't import OSM on the device
     implementation("com.graphhopper:graphhopper-core:8.0")
     implementation("org.slf4j:slf4j-android:1.7.36")
+
+    // Native Migration Dependencies
+    val room_version = "2.6.1"
+    implementation("androidx.room:room-runtime:$room_version")
+    annotationProcessor("androidx.room:room-compiler:$room_version")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("androidx.concurrent:concurrent-futures:1.1.0")
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }

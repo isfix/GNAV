@@ -20,6 +20,11 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
+        <service
+            android:name=".PanduService"
+            android:foregroundServiceType="location"
+            android:exported="false" />
+            
         <activity
             android:name=".MainActivity"
             android:exported="true"
