@@ -22,6 +22,7 @@ class MountainRegions extends Table {
 
 // Table B: Trails
 @TableIndex(name: 'trails_mountain_idx', columns: {#mountainId})
+@TableIndex(name: 'trails_spatial_covering_idx', columns: {#minLat, #maxLat, #minLng, #maxLng, #id})
 class Trails extends Table {
   TextColumn get id => text()();
   TextColumn get mountainId => text().references(MountainRegions, #id)();
@@ -62,6 +63,7 @@ class Trails extends Table {
 // Table C: PointsOfInterest
 @DataClassName('PointOfInterest')
 @TableIndex(name: 'poi_mountain_idx', columns: {#mountainId})
+@TableIndex(name: 'poi_type_idx', columns: {#type})
 class PointsOfInterest extends Table {
   TextColumn get id => text()();
   TextColumn get mountainId => text().references(MountainRegions, #id)();

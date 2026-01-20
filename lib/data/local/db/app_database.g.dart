@@ -2447,8 +2447,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $OfflineMapPackagesTable(this);
   late final Index trailsMountainIdx = Index('trails_mountain_idx',
       'CREATE INDEX trails_mountain_idx ON trails (mountain_id)');
+  late final Index trailsSpatialCoveringIdx = Index(
+      'trails_spatial_covering_idx',
+      'CREATE INDEX trails_spatial_covering_idx ON trails (min_lat, max_lat, min_lng, max_lng, id)');
   late final Index poiMountainIdx = Index('poi_mountain_idx',
       'CREATE INDEX poi_mountain_idx ON points_of_interest (mountain_id)');
+  late final Index poiTypeIdx = Index(
+      'poi_type_idx', 'CREATE INDEX poi_type_idx ON points_of_interest (type)');
   late final Index breadcrumbsSessionIdx = Index('breadcrumbs_session_idx',
       'CREATE INDEX breadcrumbs_session_idx ON user_breadcrumbs (session_id, timestamp)');
   late final Index breadcrumbsSyncedIdx = Index('breadcrumbs_synced_idx',
@@ -2467,7 +2472,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         userBreadcrumbs,
         offlineMapPackages,
         trailsMountainIdx,
+        trailsSpatialCoveringIdx,
         poiMountainIdx,
+        poiTypeIdx,
         breadcrumbsSessionIdx,
         breadcrumbsSyncedIdx
       ];
