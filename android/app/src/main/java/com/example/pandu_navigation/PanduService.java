@@ -51,6 +51,7 @@ public class PanduService extends Service {
     // Logic State
     private KalmanFilter kalmanFilter;
     private DeviationEngine.DeviationMonitor monitor;
+    private String currentSessionId;
 
     private boolean isRunning = false;
 
@@ -93,7 +94,7 @@ public class PanduService extends Service {
 
                 // 2. Insert Breadcrumb
                 BreadcrumbEntity breadcrumb = new BreadcrumbEntity();
-                breadcrumb.sessionId = "current_session"; // TODO: Manage proper session IDs
+                breadcrumb.sessionId = currentSessionId != null ? currentSessionId : "current_session";
                 breadcrumb.lat = smoothed.lat;
                 breadcrumb.lng = smoothed.lng;
                 breadcrumb.altitude = rawLocation.getAltitude();
@@ -158,9 +159,19 @@ public class PanduService extends Service {
         }
 
         if (!isRunning) {
+            if (intent != null && intent.hasExtra("sessionId")) {
+                currentSessionId = intent.getStringExtra("sessionId");
+            }
+            if (currentSessionId == null) {
+                currentSessionId = "current_session";
+            }
+
             startForeground(NOTIFICATION_ID, buildNotification());
             startLocationUpdates();
             isRunning = true;
+        } else if (intent != null && intent.hasExtra("sessionId")) {
+            // Allow updating session ID while running
+            currentSessionId = intent.getStringExtra("sessionId");
         }
 
         return START_STICKY;

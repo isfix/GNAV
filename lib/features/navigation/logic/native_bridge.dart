@@ -9,8 +9,8 @@ class NativeBridge {
   static const EventChannel _updateChannel =
       EventChannel('com.pandu.nav/updates');
 
-  static Future<void> startService() async {
-    await _commandChannel.invokeMethod('startService');
+  static Future<void> startService(String sessionId) async {
+    await _commandChannel.invokeMethod('startService', {'sessionId': sessionId});
   }
 
   static Future<void> stopService() async {

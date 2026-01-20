@@ -6,6 +6,7 @@ import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_typography.dart';
 import 'package:pandu_navigation/features/navigation/presentation/offline_map_screen.dart';
 import 'package:pandu_navigation/features/navigation/logic/native_bridge.dart';
+import 'package:pandu_navigation/features/navigation/logic/session_manager.dart';
 
 class StitchMapScreen extends ConsumerStatefulWidget {
   const StitchMapScreen({super.key});
@@ -25,7 +26,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
   void initState() {
     super.initState();
     // Start native tracking service when screen opens
-    NativeBridge.startService();
+    ref.read(sessionManagerProvider).startSession();
   }
 
   @override
@@ -298,7 +299,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                     color: Colors.red,
                     isDanger: true,
                     onTap: () {
-                      NativeBridge.stopService();
+                      ref.read(sessionManagerProvider).stopSession();
                       context.pop();
                     },
                   ),

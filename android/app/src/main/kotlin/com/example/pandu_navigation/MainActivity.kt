@@ -28,7 +28,11 @@ class MainActivity: FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, COMMAND_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startService" -> {
+                    val sessionId = call.argument<String>("sessionId")
                     val intent = Intent(this, PanduService::class.java)
+                    if (sessionId != null) {
+                        intent.putExtra("sessionId", sessionId)
+                    }
                     startForegroundService(intent)
                     result.success(null)
                 }
