@@ -3,19 +3,16 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../../../../data/local/db/app_database.dart';
 import 'kd_tree.dart';
 import 'topology_builder.dart';
-import 'kd_tree.dart';
 
 class RoutingEngine {
   static const double _kMaxSnapDistance = 1000.0;
 
   Map<String, RoutingNode> _graph = {};
-  KDTree? _kdTree;
   KdTree? _spatialIndex;
 
   /// Rebuilds the graph from trails. Call this on mountain region change.
   void initializeGraph(List<Trail> trails) {
     _graph = TopologyBuilder.buildGraph(trails);
-    _kdTree = KDTree.build(_graph.values.toList());
     if (_graph.isNotEmpty) {
       _spatialIndex = KdTree()..build(_graph.values.toList());
     } else {
@@ -79,41 +76,16 @@ class RoutingEngine {
   }
 
   RoutingNode? _findNearestNode(LatLng point) {
-    final target = RoutingNode('temp', point.latitude, point.longitude);
-
-    if (_kdTree != null) {
-      final bestNode = _kdTree!.nearest(target);
-      if (bestNode != null) {
-        final dist = TopologyBuilder.calculateDistance(bestNode, target);
-        // Only snap if within reasonable distance (e.g. 1km)
-        if (dist <= _kMaxSnapDistance) return bestNode;
     if (_spatialIndex != null) {
       final bestNode = _spatialIndex!.findNearest(point);
       if (bestNode != null) {
         final dist = TopologyBuilder.calculateDistance(
             bestNode, RoutingNode('temp', point.latitude, point.longitude));
         // Only snap if within reasonable distance (e.g. 1km)
-        if (dist <= 1000) return bestNode;
-      }
-      return null;
-    }
-
-    // Fallback if tree not built
-    // Fallback for linear search if KdTree is somehow missing, though initializeGraph ensures it's set if graph not empty.
-    RoutingNode? bestNode;
-    double minDist = double.infinity;
-
-    for (final node in _graph.values) {
-      final dist = TopologyBuilder.calculateDistance(node, target);
-      if (dist < minDist) {
-        minDist = dist;
-        bestNode = node;
+        if (dist <= _kMaxSnapDistance) return bestNode;
       }
     }
-    // Only snap if within reasonable distance (e.g. 1km)
-    if (minDist > _kMaxSnapDistance) return null;
-
-    return bestNode;
+    return null;
   }
 
   double _heuristic(RoutingNode a, RoutingNode b) {
