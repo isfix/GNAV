@@ -8,9 +8,60 @@ import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 import '../utils/geo_math.dart';
 
-/// Top-level function to ensure it can be run in a separate isolate.
-Gpx _parseGpx(String xmlString) {
-  return GpxReader().fromString(xmlString);
+
+
+/// Container for data parsed from a GPX file in an isolate.
+class GpxParsingResult {
+  final Gpx gpx;
+  final Map<int, TrackPointExtensions> extensions;
+
+  GpxParsingResult(this.gpx, this.extensions);
+}
+
+/// Unified parsing function to run in an isolate.
+GpxParsingResult _parseGpxAndExtensionsIsolate(String rawXml) {
+  // 1. Parse core GPX data
+  final gpx = GpxReader().fromString(rawXml);
+
+  // 2. Parse extensions from the same XML document
+  final extensions = <int, TrackPointExtensions>{};
+  try {
+    final document = xml.XmlDocument.parse(rawXml);
+    final trkpts = document.findAllElements('trkpt');
+    int index = 0;
+    for (final trkpt in trkpts) {
+      String? surface;
+      String? sacScale;
+      String? highway;
+      final extensionsNode = trkpt.findElements('extensions').firstOrNull;
+      if (extensionsNode != null) {
+        for (final child
+            in extensionsNode.descendants.whereType<xml.XmlElement>()) {
+          final localName = child.name.local.toLowerCase();
+          final text = child.innerText.trim();
+          if (localName == 'surface' && text.isNotEmpty) {
+            surface = text;
+          } else if (localName == 'sac_scale' && text.isNotEmpty) {
+            sacScale = text;
+          } else if (localName == 'highway' && text.isNotEmpty) {
+            highway = text;
+          }
+        }
+      }
+      if (surface != null || sacScale != null || highway != null) {
+        extensions[index] = TrackPointExtensions(
+          surface: surface,
+          sacScale: sacScale,
+          highway: highway,
+        );
+      }
+      index++;
+    }
+  } catch (e) {
+    debugPrint('[TrackLoader] Error parsing extensions in isolate: $e');
+  }
+
+  return GpxParsingResult(gpx, extensions);
 }
 
 /// Parsed extension data from GPX track points
@@ -52,7 +103,8 @@ class TrackLoaderService {
 
       // GpxReader().fromString is a CPU-bound synchronous operation that can freeze the UI.
       // We run it in a separate isolate to avoid blocking the main thread.
-      final gpx = await compute(_parseGpx, xmlString);
+      final parsingResult = await compute(_parseGpxAndExtensionsIsolate, xmlString);
+      final gpx = parsingResult.gpx;
 
       // Validation: Check for empty content
       if (gpx.trks.isEmpty && gpx.wpts.isEmpty) {
@@ -64,7 +116,8 @@ class TrackLoaderService {
       // 2. Process Tracks -> Trails table
       if (gpx.trks.isNotEmpty) {
         // We need raw XML to extract extensions (gpx package doesn't expose them)
-        await _processTrackWithExtensions(gpx, xmlString, mountainId, trailId);
+        await _processTrackWithExtensions(
+            gpx, parsingResult.extensions, mountainId, trailId);
       }
 
       // 3. Process Waypoints -> PointsOfInterest table
@@ -85,15 +138,12 @@ class TrackLoaderService {
   /// Process GPX tracks with extension data extraction
   Future<void> _processTrackWithExtensions(
     Gpx gpx,
-    String rawXml,
+    Map<int, TrackPointExtensions> extensionsMap,
     String mountainId,
     String trailId,
   ) async {
     final trk = gpx.trks.first;
     final trailName = trk.name ?? trailId;
-
-    // Parse XML to extract extensions
-    final extensionsMap = _extractExtensionsFromXml(rawXml);
 
     // Collect all points from all segments
     final allPoints = <Wpt>[];
@@ -207,55 +257,6 @@ class TrackLoaderService {
         '[TrackLoader] Trail saved: $trailName (${dbPoints.length} points, ${(totalDist / 1000).toStringAsFixed(1)}km, difficulty: $difficulty)');
   }
 
-  /// Extracts Garmin TrackPointExtension data from raw GPX XML
-  Map<int, TrackPointExtensions> _extractExtensionsFromXml(String rawXml) {
-    final result = <int, TrackPointExtensions>{};
-
-    try {
-      final document = xml.XmlDocument.parse(rawXml);
-      final trkpts = document.findAllElements('trkpt');
-
-      int index = 0;
-      for (final trkpt in trkpts) {
-        String? surface;
-        String? sacScale;
-        String? highway;
-
-        // Look for extensions
-        final extensions = trkpt.findElements('extensions').firstOrNull;
-        if (extensions != null) {
-          // Navigate to gpxtpx:TrackPointExtension / gpxtpx:Extensions
-          for (final child
-              in extensions.descendants.whereType<xml.XmlElement>()) {
-            final localName = child.name.local.toLowerCase();
-            final text = child.innerText.trim();
-
-            if (localName == 'surface' && text.isNotEmpty) {
-              surface = text;
-            } else if (localName == 'sac_scale' && text.isNotEmpty) {
-              sacScale = text;
-            } else if (localName == 'highway' && text.isNotEmpty) {
-              highway = text;
-            }
-          }
-        }
-
-        if (surface != null || sacScale != null || highway != null) {
-          result[index] = TrackPointExtensions(
-            surface: surface,
-            sacScale: sacScale,
-            highway: highway,
-          );
-        }
-
-        index++;
-      }
-    } catch (e) {
-      debugPrint('[TrackLoader] Error parsing extensions: $e');
-    }
-
-    return result;
-  }
 
   /// Calculate overall trail difficulty from collected SAC scales
   int _calculateOverallDifficulty(List<SacScale> scales) {
