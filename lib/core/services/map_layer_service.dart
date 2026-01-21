@@ -525,18 +525,22 @@ class MapLayerService {
     required String clusterCountLayerId,
     required String clusterColorHex,
   }) async {
-    // maplibre_gl 0.25+ doesn't support native clustering via addSource
-    // Workaround: Use addGeoJsonSource and simulate clustering with zoom filters
+    // True clustering is now supported by injecting sources into the style JSON
+    // (via OfflineMapStyleHelper). We try to update data on the existing source.
+    try {
+      await _controller!.setGeoJsonSource(sourceId, geojson);
+    } catch (_) {
+      // Fallback: If source is missing (e.g. style didn't load correctly),
+      // add it dynamically. Clustering will be lost in this fallback case.
+      await _controller!.addGeoJsonSource(sourceId, geojson);
+    }
 
-    // Add GeoJSON source (no clustering - that requires native style JSON)
-    await _controller!.addGeoJsonSource(sourceId, geojson);
-
-    // 1. Individual markers (visible at higher zoom)
+    // 1. Individual markers (Non-clustered)
     await _controller!.addCircleLayer(
       sourceId,
       unclusteredLayerId,
       unclusteredCircleProps,
-      minzoom: 12, // Only show individual markers at zoom 12+
+      filter: ['!has', 'point_count'],
     );
 
     // 2. Labels for individual markers
@@ -544,11 +548,10 @@ class MapLayerService {
       sourceId,
       unclusteredLabelLayerId,
       unclusteredLabelProps,
-      minzoom: 12,
+      filter: ['!has', 'point_count'],
     );
 
-    // 3. Aggregated circle at low zoom (simulates cluster)
-    // This shows a single marker at the centroid when zoomed out
+    // 3. Cluster Circles
     await _controller!.addCircleLayer(
       sourceId,
       clusterLayerId,
@@ -558,13 +561,22 @@ class MapLayerService {
         circleStrokeWidth: 2,
         circleStrokeColor: '#ffffff',
       ),
-      maxzoom: 12, // Only show at low zoom
+      filter: ['has', 'point_count'],
     );
 
-    // Note: True clustering requires setting cluster options in the style JSON
-    // before loading the map. For full clustering support, use:
-    // 1. A style JSON with pre-defined clustered source, OR
-    // 2. Native code via MethodChannel to add clustered source
+    // 4. Cluster Counts
+    await _controller!.addSymbolLayer(
+      sourceId,
+      clusterCountLayerId,
+      const SymbolLayerProperties(
+        textField: ['get', 'point_count_abbreviated'],
+        textSize: 12,
+        textColor: '#ffffff',
+        textAllowOverlap: true,
+        textIgnorePlacement: true,
+      ),
+      filter: ['has', 'point_count'],
+    );
   }
 
   /// Draws mountain markers as clickable GeoJSON layer with circle + text
