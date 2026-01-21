@@ -80,6 +80,7 @@ class PointsOfInterest extends Table {
 // Table D: UserBreadcrumbs
 @TableIndex(name: 'breadcrumbs_session_idx', columns: {#sessionId, #timestamp})
 @TableIndex(name: 'breadcrumbs_synced_idx', columns: {#isSynced})
+@TableIndex(name: 'breadcrumbs_timestamp_idx', columns: {#timestamp})
 class UserBreadcrumbs extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get sessionId => text()();

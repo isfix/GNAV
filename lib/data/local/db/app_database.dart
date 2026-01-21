@@ -25,7 +25,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? e]) : super(e ?? _openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration {
@@ -75,6 +75,10 @@ class AppDatabase extends _$AppDatabase {
           // Version 8: Added startLat and startLng to Trails
           await m.addColumn(trails, trails.startLat);
           await m.addColumn(trails, trails.startLng);
+        }
+        if (from < 9) {
+          // Version 9: Added timestamp index for UserBreadcrumbs
+          await m.createIndex(breadcrumbsTimestampIdx);
         }
       },
     );
