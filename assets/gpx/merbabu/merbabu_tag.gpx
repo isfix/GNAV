@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="https://gpx.studio" version="1.1" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.garmin.com/xmlschemas/GpxExtensions/v3 http://www.garmin.com/xmlschemas/GpxExtensionsv3.xsd http://www.garmin.com/xmlschemas/TrackPointExtension/v1 http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd http://www.garmin.com/xmlschemas/PowerExtension/v1 http://www.garmin.com/xmlschemas/PowerExtensionv1.xsd http://www.topografix.com/GPX/gpx_style/0/2 http://www.topografix.com/GPX/gpx_style/0/2/gpx_style.xsd" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1" xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3" xmlns:gpxpx="http://www.garmin.com/xmlschemas/PowerExtension/v1" xmlns:gpx_style="http://www.topografix.com/GPX/gpx_style/0/2">
+  <metadata>
+    <name>merbabu_tag</name>
+    <author>
+      <name>gpx.studio</name>
+      <link href="https://gpx.studio"/>
+    </author>
+  </metadata>
+  <wpt lat="-7.410433" lon="110.426405">
+    <ele>1616.0663928887807</ele>
+    <name>Basecamp Thekelan</name>
+    <sym>Lodge</sym>
+  </wpt>
+  <wpt lat="-7.424671" lon="110.430641">
+    <ele>2026.9106146324434</ele>
+    <name>Gerbang Cendani</name>
+    <sym>Forest</sym>
+  </wpt>
+  <wpt lat="-7.427765" lon="110.432461">
+    <ele>2134.1844070831316</ele>
+    <name>Water Source</name>
+    <sym>Water Source</sym>
+  </wpt>
+  <wpt lat="-7.429162" lon="110.43196">
+    <ele>2255.1659242664477</ele>
+    <name>Water Source</name>
+    <sym>Water Source</sym>
+  </wpt>
+  <wpt lat="-7.429537" lon="110.43205">
+    <ele>2252.9639146661393</ele>
+    <name>Akasia Kembar</name>
+    <sym>Forest</sym>
+  </wpt>
+  <wpt lat="-7.433243" lon="110.433778">
+    <ele>2434.791116088536</ele>
+    <name>Pos 3 Gumuk Mentul</name>
+    <sym>Campground</sym>
+  </wpt>
+  <wpt lat="-7.417335" lon="110.418738">
+    <ele>1664.2942088535995</ele>
+    <name>Basecamp Cuntel</name>
+    <sym>Lodge</sym>
+  </wpt>
+  <wpt lat="-7.426802" lon="110.425192">
+    <ele>2047.6768921766961</ele>
+    <name>Pos Bayangan 2 Gumuk</name>
+    <sym>Campground</sym>
+  </wpt>
+  <wpt lat="-7.430236" lon="110.427535">
+    <ele>2205.0410097171552</ele>
+    <name>Pos 1 Watu Putut</name>
+    <sym>Campground</sym>
+  </wpt>
+  <wpt lat="-7.433868" lon="110.428957">
+    <ele>2383.4000000000015</ele>
+    <name>Pos 2 Kedokan</name>
+    <sym>Campground</sym>
+  </wpt>
+  <wpt lat="-7.444144" lon="110.433283">
+    <ele>2615.425051231357</ele>
+    <name>Water Source</name>
+    <sym>Water Source</sym>
+  </wpt>
+  <wpt lat="-7.454222" lon="110.439691">
+    <ele>3097.236432076354</ele>
+    <name>Puncak Triangulasi</name>
+    <sym>Summit</sym>
+  </wpt>
+  <wpt lat="-7.48852" lon="110.461815">
+    <ele>1760.9562368000402</ele>
+    <name>Basecamp Gancik</name>
+    <sym>Lodge</sym>
+  </wpt>
+  <wpt lat="-7.469406" lon="110.446565">
+    <ele>2549.0500850138733</ele>
+    <name>Viewpoint Merapi</name>
+    <sym>Binoculars</sym>
+  </wpt>
+  <wpt lat="-7.474334039556126" lon="110.3984622126398">
+    <ele>1340.5909578486312</ele>
+    <name>Basecamp Suwanting</name>
+    <sym>Lodge</sym>
+  </wpt>
+  <wpt lat="-7.470568" lon="110.404458">
+    <ele>1480.441164079452</ele>
+    <name>Pintu Rimba</name>
+    <sym>Forest</sym>
+  </wpt>
+  <wpt lat="-7.46184167292698" lon="110.39693777724881">
+    <ele>1435.4519098984697</ele>
+    <name>Basecamp Grenden</name>
+    <sym>Lodge</sym>
+  </wpt>
+  <wpt lat="-7.43229" lon="110.41409">
+    <ele>1779.8455724966261</ele>
+    <name>Basecamp Wekas</name>
+    <sym>Lodge</sym>
+  </wpt>
+  <wpt lat="-7.449768" lon="110.442636">
+    <ele>3087.8317937810075</ele>
+    <name>Puncak Syarif</name>
+    <sym>Summit</sym>
+  </wpt>
+  <wpt lat="-7.446116" lon="110.444929">
+    <ele>2999.5347422498753</ele>
+    <name>Puncak Pregowati</name>
+    <sym>Summit</sym>
+  </wpt>
+  <trk>
+    <name>merbabu_tag</name>
+    <trkseg>
+      <trkpt lat="-7.410630304620469" lon="110.42651673326867"/>
+    </trkseg>
+  </trk>
+</gpx>

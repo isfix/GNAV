@@ -8,8 +8,6 @@ import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 import '../utils/geo_math.dart';
 
-
-
 /// Container for data parsed from a GPX file in an isolate.
 class GpxParsingResult {
   final Gpx gpx;
@@ -105,7 +103,8 @@ class TrackLoaderService {
 
       // GpxReader().fromString is a CPU-bound synchronous operation that can freeze the UI.
       // We run it in a separate isolate to avoid blocking the main thread.
-      final parsingResult = await compute(_parseGpxAndExtensionsIsolate, xmlString);
+      final parsingResult =
+          await compute(_parseGpxAndExtensionsIsolate, xmlString);
       final gpx = parsingResult.gpx;
 
       // Validation: Check for empty content
@@ -259,7 +258,6 @@ class TrackLoaderService {
         '[TrackLoader] Trail saved: $trailName (${dbPoints.length} points, ${(totalDist / 1000).toStringAsFixed(1)}km, difficulty: $difficulty)');
   }
 
-
   /// Calculate overall trail difficulty from collected SAC scales
   int _calculateOverallDifficulty(List<SacScale> scales) {
     if (scales.isEmpty) return 2; // Default moderate
@@ -288,10 +286,15 @@ class TrackLoaderService {
         // Get description from desc or cmt fields
         final description = wpt.desc ?? wpt.cmt ?? '';
 
+        // Get sym tag (GPX symbol) for icon type
+        final sym = wpt.sym ?? '';
+
         if (lat == 0 || lon == 0) continue;
 
-        // Smart Tagging: Determine POI type from name and description
-        final poiType = _categorizeWaypoint(name, description);
+        // Smart Tagging: Prioritize sym tag, fallback to name/description heuristics
+        final poiType = sym.isNotEmpty
+            ? _symToPoiType(sym)
+            : _categorizeWaypoint(name, description);
 
         // Generate unique ID
         final poiId =
@@ -314,6 +317,55 @@ class TrackLoaderService {
       }
     });
     debugPrint('[TrackLoader] POIs saved: ${waypoints.length}');
+  }
+
+  /// Maps GPX <sym> tag values to PoiType for icon selection
+  PoiType _symToPoiType(String sym) {
+    final lowerSym = sym.toLowerCase();
+
+    // Standard GPX symbol mappings
+    switch (lowerSym) {
+      case 'summit':
+      case 'mountain':
+        return PoiType.summit;
+      case 'water source':
+      case 'drinking water':
+      case 'water':
+        return PoiType.water;
+      case 'campground':
+      case 'camp':
+      case 'tent':
+        return PoiType.campsite;
+      case 'lodge':
+      case 'hotel':
+      case 'residence':
+      case 'house':
+        return PoiType.basecamp;
+      case 'binoculars':
+      case 'scenic area':
+      case 'viewpoint':
+        return PoiType.viewpoint;
+      case 'forest':
+      case 'tree':
+      case 'park':
+        return PoiType.shelter;
+      case 'danger':
+      case 'skull and crossbones':
+      case 'caution':
+        return PoiType.dangerZone;
+      case 'trail head':
+      case 'trailhead':
+        return PoiType.junction;
+      default:
+        // Try to match partial strings
+        if (lowerSym.contains('water')) return PoiType.water;
+        if (lowerSym.contains('camp')) return PoiType.campsite;
+        if (lowerSym.contains('summit') || lowerSym.contains('peak'))
+          return PoiType.summit;
+        if (lowerSym.contains('lodge') || lowerSym.contains('base'))
+          return PoiType.basecamp;
+        return PoiType.shelter; // Default fallback
+    }
   }
 
   /// Smart Tagging: Categorizes waypoints based on name and description patterns

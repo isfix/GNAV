@@ -370,29 +370,41 @@ class MapLayerService {
   }
 
   /// Loads POI icons from assets into the map controller
+  /// Icons should be named matching PoiType enum values: basecamp.png, water.png, etc.
   Future<void> _loadPoiIcons() async {
     if (_controller == null) return;
 
-    final icons = ['camp', 'water', 'danger', 'summit', 'pos', 'default'];
+    // Load icons for all PoiType values
+    final iconNames = [
+      'basecamp',
+      'water',
+      'shelter',
+      'dangerZone',
+      'summit',
+      'viewpoint',
+      'campsite',
+      'junction',
+      'default', // Fallback icon
+    ];
 
-    for (final icon in icons) {
-      if (_loadedIcons.contains(icon)) continue;
+    for (final iconName in iconNames) {
+      if (_loadedIcons.contains(iconName)) continue;
 
       try {
         final ByteData bytes =
-            await rootBundle.load('assets/icons/poi/$icon.png');
+            await rootBundle.load('assets/icons/poi/$iconName.png');
         final Uint8List list = bytes.buffer.asUint8List();
-        await _controller!.addImage('icon_$icon', list);
-        _loadedIcons.add(icon);
-        debugPrint('[MapLayer] Loaded icon: $icon');
+        await _controller!.addImage('icon_$iconName', list);
+        _loadedIcons.add(iconName);
+        debugPrint('[MapLayer] Loaded icon: $iconName');
       } catch (e) {
         debugPrint(
-            '[MapLayer] Failed to load icon $icon. Using default logic.');
+            '[MapLayer] Icon $iconName.png not found. Will use default.');
       }
     }
   }
 
-  /// Adds POI markers using symbols with dynamic icons
+  /// Adds POI markers using symbols with dynamic icons based on PoiType
   Future<void> addPOIMarkers(List<PointOfInterest> pois) async {
     if (_controller == null) return;
 
@@ -413,12 +425,14 @@ class MapLayerService {
       await _loadPoiIcons();
 
       final features = pois.map((poi) {
+        // Convert PoiType enum to string name (e.g., PoiType.summit -> "summit")
+        final typeString = poi.type.name;
         return {
           'type': 'Feature',
           'id': poi.id,
           'properties': {
             'name': poi.name,
-            'type': poi.type, // Pass string type directly
+            'type': typeString,
           },
           'geometry': {
             'type': 'Point',
@@ -432,18 +446,21 @@ class MapLayerService {
       if (!_poiLayerAdded) {
         await _controller!.addGeoJsonSource(poiSourceId, geojson);
 
-        // Symbol Layer with Dynamic Icon Logic
+        // Symbol Layer with Dynamic Icon Logic matching PoiType enum names
         await _controller!.addSymbolLayer(
           poiSourceId,
           poiLayerId,
           SymbolLayerProperties(
             iconImage: [
               'match', ['get', 'type'],
-              'camp', 'icon_camp',
+              'basecamp', 'icon_basecamp',
               'water', 'icon_water',
-              'danger', 'icon_danger',
+              'shelter', 'icon_shelter',
+              'dangerZone', 'icon_dangerZone',
               'summit', 'icon_summit',
-              'pos', 'icon_pos',
+              'viewpoint', 'icon_viewpoint',
+              'campsite', 'icon_campsite',
+              'junction', 'icon_junction',
               'icon_default' // Fallback
             ],
             iconSize: 1.0,
