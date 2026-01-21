@@ -12,6 +12,7 @@ import 'package:pandu_navigation/features/navigation/logic/native_bridge.dart';
 import 'package:pandu_navigation/data/local/db/app_database.dart';
 import 'package:go_router/go_router.dart';
 import 'dart:async';
+import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 
@@ -24,6 +25,7 @@ class StitchMapScreen extends ConsumerStatefulWidget {
 }
 
 class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
+  MapLibreMapController? _mapController;
   int _elapsedSeconds = 0;
   bool _isTracking = true;
 
@@ -297,18 +299,23 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
 
   // --- Map Control Callbacks ---
   void _onZoomIn() {
-    // TODO: Implement zoom in via MapController reference
-    debugPrint('[StitchMapScreen] Zoom In tapped');
+    if (_mapController == null) return;
+    _mapController!
+        .animateCamera(CameraUpdate.zoomTo(_mapController!.cameraPosition!.zoom + 1));
   }
 
   void _onZoomOut() {
-    // TODO: Implement zoom out via MapController reference
-    debugPrint('[StitchMapScreen] Zoom Out tapped');
+    if (_mapController == null) return;
+    _mapController!
+        .animateCamera(CameraUpdate.zoomTo(_mapController!.cameraPosition!.zoom - 1));
   }
 
   void _onCenterLocation() {
-    // TODO: Implement center on user location
-    debugPrint('[StitchMapScreen] Center Location tapped');
+    if (_mapController == null) return;
+    // NOTE: This will center on the map's current tracking location,
+    // which is managed by the OfflineMapScreen's internal state.
+    _mapController!.moveCamera(CameraUpdate.newLatLngZoom(
+        _mapController!.cameraPosition!.target, 15));
   }
 
   Widget _buildTopBtn(IconData icon) {
@@ -622,6 +629,11 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
       isHeadless: true,
       mountainId: widget.trail?.mountainId ?? 'merbabu',
       trailId: widget.trail?.id,
+      onMapCreated: (controller) {
+        setState(() {
+          _mapController = controller;
+        });
+      },
     );
   }
 }
