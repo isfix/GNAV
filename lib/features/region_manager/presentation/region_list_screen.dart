@@ -20,9 +20,6 @@ class _RegionListScreenState extends ConsumerState<RegionListScreen> {
       _loadingId = id;
     });
 
-    // Simulate Network/Download delay
-    await Future.delayed(const Duration(seconds: 2));
-
     // Seed Data
     // The original code used `SeedingService(db)`, but the instruction implies
     // a switch to `seedingServiceProvider`. Assuming `seedingServiceProvider`
