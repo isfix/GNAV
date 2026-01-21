@@ -14,11 +14,9 @@ error.log
 analysis.txt
 
 # Large Data & Media
-*.mbtiles
 *.mp4
 *.mov
 *.avi
-assets/map_data/*.mbtiles
 
 # Unused Platforms (Android-Only Dev)
 /linux/

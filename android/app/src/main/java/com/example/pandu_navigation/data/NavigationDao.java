@@ -36,4 +36,10 @@ public interface NavigationDao {
 
     @Query("SELECT COUNT(*) FROM trails")
     int getTrailCount();
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertMountain(MountainEntity mountain);
+
+    @Query("SELECT * FROM mountain_regions")
+    List<MountainEntity> getAllMountains();
 }

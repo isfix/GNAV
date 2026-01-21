@@ -78,6 +78,21 @@ public class AssetConfigLoader {
                         dao.insertPoi(poi);
                     }
                 }
+                // 3. Insert Mountain
+                MountainEntity mEntity = new MountainEntity(
+                        mountain.id,
+                        mountain.name,
+                        mountain.description,
+                        mountain.region,
+                        mountain.lat,
+                        mountain.lng,
+                        mountain.altitude,
+                        false, // isDownloaded default
+                        false, // isOfflineAvailable default
+                        null, // localMapPath
+                        "{}" // boundaryJson
+                );
+                dao.insertMountain(mEntity);
             }
 
         } catch (Exception e) {
@@ -201,6 +216,11 @@ public class AssetConfigLoader {
     private static class MountainConfig {
         String id;
         String name;
+        String region;
+        String description;
+        double lat;
+        double lng;
+        double altitude;
         List<TrackConfig> tracks;
         String poi_file;
     }

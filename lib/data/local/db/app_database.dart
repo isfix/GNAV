@@ -88,10 +88,16 @@ class AppDatabase extends _$AppDatabase {
 LazyDatabase _openConnection() {
   // the LazyDatabase util lets us find the right location for the file async.
   return LazyDatabase(() async {
-    // put the database file, called db.sqlite here, into the documents folder
-    // for your app.
+    // NATIVE SYNC: Use the system database directory where Room creates 'pandu_native_db'
+    // /data/user/0/com.example.pandu_navigation/databases/pandu_native_db
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'pandu_db.sqlite'));
+    final appDir = dbFolder.parent;
+    final dbPath = p.join(appDir.path, 'databases');
+
+    // Ensure the directory exists (fixes race condition where Dart runs before Room)
+    await Directory(dbPath).create(recursive: true);
+
+    final file = File(p.join(dbPath, 'pandu_native_db'));
     return NativeDatabase.createInBackground(file);
   });
 }
