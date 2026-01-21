@@ -37,12 +37,14 @@ class OfflineMapScreen extends ConsumerStatefulWidget {
   final String? mountainId;
   final String? trailId;
   final bool isHeadless;
+  final Function(MapLibreMapController)? onMapCreated;
 
   const OfflineMapScreen({
     super.key,
     this.mountainId,
     this.trailId,
     this.isHeadless = false,
+    this.onMapCreated,
   });
 
   @override
@@ -976,6 +978,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
       onMapCreated: (controller) {
         _mapController = controller;
         mapLayerService.attach(controller);
+        widget.onMapCreated?.call(controller);
       },
       onStyleLoadedCallback: () {
         _drawMapLayers();
