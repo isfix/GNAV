@@ -24,6 +24,7 @@ class MapLayerService {
   bool _backtrackLayerAdded = false;
   bool _dangerZoneLayerAdded = false;
   bool _poiLayerAdded = false;
+  final Set<String> _loadedIcons = {};
 
   // Route Layer constants
   static const String routeSourceId = 'route-source';
@@ -36,6 +37,7 @@ class MapLayerService {
     _backtrackLayerAdded = false;
     _dangerZoneLayerAdded = false;
     _poiLayerAdded = false;
+    _loadedIcons.clear();
   }
 
   void detach() {
@@ -45,6 +47,7 @@ class MapLayerService {
     _dangerZoneLayerAdded = false;
     _poiLayerAdded = false;
     _userLocationLayerAdded = false;
+    _loadedIcons.clear();
   }
 
   // User Location Constants
@@ -374,16 +377,14 @@ class MapLayerService {
     final icons = ['camp', 'water', 'danger', 'summit', 'pos', 'default'];
 
     for (final icon in icons) {
-      try {
-        // Check if image is already added to avoid reloading
-        // MapLibre doesn't have a simple hasImage check exposed easily in all versions,
-        // but adding same image name again is usually fine or overwrites.
-        // We catch error if file missing.
+      if (_loadedIcons.contains(icon)) continue;
 
+      try {
         final ByteData bytes =
             await rootBundle.load('assets/icons/poi/$icon.png');
         final Uint8List list = bytes.buffer.asUint8List();
         await _controller!.addImage('icon_$icon', list);
+        _loadedIcons.add(icon);
         debugPrint('[MapLayer] Loaded icon: $icon');
       } catch (e) {
         debugPrint(
