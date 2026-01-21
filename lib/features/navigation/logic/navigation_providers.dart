@@ -7,7 +7,6 @@ import 'deviation_engine.dart';
 import 'gps_state_machine.dart';
 import '../../../core/services/track_loader_service.dart';
 import 'routing/routing_engine.dart';
-import 'native_bridge.dart';
 
 // Database Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -72,8 +71,8 @@ final activeMountainIdProvider = StateProvider<String>((ref) => 'merbabu');
 // Should fetch based on current active MountainRegion
 final activeTrailsProvider =
     FutureProvider.family<List<Trail>, String>((ref, mountainId) async {
-  // Use Native Bridge to get trails from Room DB (seeded by assets)
-  return NativeBridge.getTrails(mountainId);
+  final db = ref.watch(databaseProvider);
+  return db.navigationDao.getTrailsForMountain(mountainId);
 });
 final activePoisProvider = FutureProvider.family<List<PointOfInterest>, String>(
     (ref, mountainId) async {
