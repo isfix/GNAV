@@ -26,7 +26,7 @@ class SeedingService {
   SeedingService(this.db,
       {TrackLoaderService? trackLoader, AssetBundle? bundle})
       : _bundle = bundle ?? rootBundle {
-    _trackLoader = trackLoader ?? TrackLoaderService(db);
+    _trackLoader = trackLoader ?? TrackLoaderService(db, bundle: _bundle);
   }
 
   /// Creates a TrailsCompanion with calculated bounding box

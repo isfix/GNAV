@@ -75,8 +75,10 @@ class TrackPointExtensions {
 
 class TrackLoaderService {
   final AppDatabase _db;
+  final AssetBundle _bundle;
 
-  TrackLoaderService(this._db);
+  TrackLoaderService(this._db, {AssetBundle? bundle})
+      : _bundle = bundle ?? rootBundle;
 
   /// Loads a complete GPX file from assets, processing both Tracks and Waypoints.
   ///
@@ -93,7 +95,7 @@ class TrackLoaderService {
   ) async {
     try {
       // 1. Read & Parse GPX
-      final xmlString = await rootBundle.loadString(assetPath);
+      final xmlString = await _bundle.loadString(assetPath);
 
       // Validation: Check for empty file
       if (xmlString.trim().isEmpty) {
