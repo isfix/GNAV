@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_theme.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_glass_panel.dart';
@@ -24,6 +25,7 @@ class StitchMapScreen extends ConsumerStatefulWidget {
 }
 
 class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
+  MapLibreMapController? _mapController;
   int _elapsedSeconds = 0;
   bool _isTracking = true;
 
@@ -297,17 +299,29 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
 
   // --- Map Control Callbacks ---
   void _onZoomIn() {
-    // TODO: Implement zoom in via MapController reference
+    _mapController?.animateCamera(CameraUpdate.zoomBy(1.0));
     debugPrint('[StitchMapScreen] Zoom In tapped');
   }
 
   void _onZoomOut() {
-    // TODO: Implement zoom out via MapController reference
+    _mapController?.animateCamera(CameraUpdate.zoomBy(-1.0));
     debugPrint('[StitchMapScreen] Zoom Out tapped');
   }
 
   void _onCenterLocation() {
-    // TODO: Implement center on user location
+    final navState = ref.read(nativeNavigationProvider).valueOrNull;
+    if (navState != null) {
+      final double? lat = (navState['lat'] as num?)?.toDouble();
+      final double? lng = (navState['lng'] as num?)?.toDouble();
+
+      if (lat != null && lng != null) {
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(LatLng(lat, lng), 16.0),
+        );
+      } else {
+        debugPrint('[StitchMapScreen] Location not available to center');
+      }
+    }
     debugPrint('[StitchMapScreen] Center Location tapped');
   }
 
@@ -622,6 +636,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
       isHeadless: true,
       mountainId: widget.trail?.mountainId ?? 'merbabu',
       trailId: widget.trail?.id,
+      onMapCreated: (controller) => _mapController = controller,
     );
   }
 }
