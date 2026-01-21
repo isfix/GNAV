@@ -32,6 +32,30 @@ void main() {
       final dist = GeoMath.distanceToSegment(p, start, end);
       expect(dist, greaterThan(100));
     });
+
+    test('Distance To Segment Flat (Approximation Check)', () {
+      // 1. Point on line (Should be 0)
+      final start = const LatLng(0, 0);
+      final end = const LatLng(0, 0.001);
+      final p = const LatLng(0, 0.0005);
+      final dist = GeoMath.distanceToSegmentFlat(
+          p.latitude, p.longitude,
+          start.latitude, start.longitude,
+          end.latitude, end.longitude);
+      expect(dist, closeTo(0, 0.1));
+
+      // 2. Point off line (Should be close to Haversine for small distance)
+      final pOff = const LatLng(0.0001, 0.0005); // ~11 meters off
+      final distFlat = GeoMath.distanceToSegmentFlat(
+          pOff.latitude, pOff.longitude,
+          start.latitude, start.longitude,
+          end.latitude, end.longitude);
+
+      final distHaversine = GeoMath.distanceToSegment(pOff, start, end);
+
+      // Allow small error (0.1m)
+      expect(distFlat, closeTo(distHaversine, 0.1));
+    });
   });
 
   group('DeviationEngine Tests', () {

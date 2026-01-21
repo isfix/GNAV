@@ -65,6 +65,59 @@ class GeoMath {
     return distanceMetersRaw(latP, lngP, latClosest, lngClosest);
   }
 
+  /// Calculates the distance from Point P to Segment AB using flat-earth equirectangular approximation.
+  /// This is significantly faster than Haversine for small distances but less accurate over long distances.
+  /// It reuses the cosine scaling factor of the segment for all calculations.
+  static double distanceToSegmentFlat(
+      double latP, double lngP, double latA, double lngA, double latB, double lngB) {
+    final double rLatP = _degToRad(latP);
+    final double rLngP = _degToRad(lngP);
+    final double rLatA = _degToRad(latA);
+    final double rLngA = _degToRad(lngA);
+    final double rLatB = _degToRad(latB);
+    final double rLngB = _degToRad(lngB);
+
+    final double cosFactor = cos((rLatA + rLatB) / 2);
+
+    // Vector AB
+    final double x = (rLngB - rLngA) * cosFactor;
+    final double y = rLatB - rLatA;
+    final double lenSq = x * x + y * y;
+
+    if (lenSq == 0) {
+      // Distance P to A
+      final dx = (rLngP - rLngA) * cosFactor;
+      final dy = rLatP - rLatA;
+      return earthRadiusMeters * sqrt(dx * dx + dy * dy);
+    }
+
+    // Vector AP
+    final double rx = (rLngP - rLngA) * cosFactor;
+    final double ry = rLatP - rLatA;
+
+    final double t = (rx * x + ry * y) / lenSq;
+
+    if (t < 0) {
+      // Closest is A
+      final dx = (rLngP - rLngA) * cosFactor;
+      final dy = rLatP - rLatA;
+      return earthRadiusMeters * sqrt(dx * dx + dy * dy);
+    }
+    if (t > 1) {
+      // Closest is B
+      final dx = (rLngP - rLngB) * cosFactor;
+      final dy = rLatP - rLatB;
+      return earthRadiusMeters * sqrt(dx * dx + dy * dy);
+    }
+
+    // Closest is on segment.
+    // Vector P to P_proj is (t*x - rx, t*y - ry)
+    final double dx = t * x - rx;
+    final double dy = t * y - ry;
+
+    return earthRadiusMeters * sqrt(dx * dx + dy * dy);
+  }
+
   /// Calculates bearing from p1 to p2 in degrees (0-360)
   static double bearing(LatLng p1, LatLng p2) {
     final lat1 = _degToRad(p1.latitude);

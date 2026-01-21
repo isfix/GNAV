@@ -70,7 +70,7 @@ class DeviationEngine {
         }
 
         // Use raw coordinates to avoid TrailPoint.toLatLng() allocation
-        final dist = GeoMath.distanceToSegmentRaw(
+        final dist = GeoMath.distanceToSegmentFlat(
             userLoc.latitude, userLoc.longitude,
             p1.lat, p1.lng,
             p2.lat, p2.lng);
