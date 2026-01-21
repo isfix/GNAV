@@ -36,6 +36,11 @@ class NavigationDao extends DatabaseAccessor<AppDatabase>
     with _$NavigationDaoMixin {
   NavigationDao(super.db);
 
+  /// Gets a specific trail by ID
+  Future<Trail?> getTrailById(String id) {
+    return (select(trails)..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
   Future<List<Trail>> getTrailsForMountain(String mountainId) {
     return (select(trails)..where((t) => t.mountainId.equals(mountainId)))
         .get();

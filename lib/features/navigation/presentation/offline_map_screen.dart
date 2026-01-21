@@ -150,11 +150,8 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     if (widget.trailId == null) return;
 
     final db = ref.read(databaseProvider);
-    final trails = await db.navigationDao
-        .getTrailsForMountain(widget.mountainId ?? 'merbabu');
+    final selectedTrail = await db.navigationDao.getTrailById(widget.trailId!);
 
-    final selectedTrail =
-        trails.where((t) => t.id == widget.trailId).firstOrNull;
     if (selectedTrail != null && mounted) {
       setState(() {
         _selectedTrail = selectedTrail;
