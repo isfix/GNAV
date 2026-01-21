@@ -374,34 +374,44 @@ class MapLayerService {
   Future<void> _loadPoiIcons() async {
     if (_controller == null) return;
 
-    // Load icons for all PoiType values
+    // Define all possible icons.
     final iconNames = [
-      'basecamp',
-      'water',
-      'shelter',
-      'dangerZone',
-      'summit',
-      'viewpoint',
-      'campsite',
-      'junction',
-      'default', // Fallback icon
+      'basecamp', 'water', 'shelter', 'dangerZone', 'summit',
+      'viewpoint', 'campsite', 'junction', 'default',
     ];
 
-    for (final iconName in iconNames) {
-      if (_loadedIcons.contains(iconName)) continue;
+    // 1. Synchronously determine which icons are new.
+    final iconsToLoad = iconNames
+        .where((iconName) => !_loadedIcons.contains(iconName))
+        .toList();
 
+    // If there's nothing to load, exit early.
+    if (iconsToLoad.isEmpty) {
+      return;
+    }
+
+    // 2. Synchronously mark new icons as "in-progress" to prevent race conditions.
+    // If a second call to _loadPoiIcons happens while the first is awaiting,
+    // this ensures we don't try to load the same icons twice.
+    _loadedIcons.addAll(iconsToLoad);
+
+    // 3. Create and await the futures for only the necessary icons.
+    final loadFutures = iconsToLoad.map((iconName) async {
       try {
         final ByteData bytes =
             await rootBundle.load('assets/icons/poi/$iconName.png');
         final Uint8List list = bytes.buffer.asUint8List();
         await _controller!.addImage('icon_$iconName', list);
-        _loadedIcons.add(iconName);
         debugPrint('[MapLayer] Loaded icon: $iconName');
       } catch (e) {
+        // If an icon fails to load, it remains in _loadedIcons for this session
+        // to prevent repeated failed attempts. The map will use the fallback icon.
         debugPrint(
             '[MapLayer] Icon $iconName.png not found. Will use default.');
       }
-    }
+    });
+
+    await Future.wait(loadFutures);
   }
 
   /// Adds POI markers using symbols with dynamic icons based on PoiType
