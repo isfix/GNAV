@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
-import '../../../data/local/db/converters.dart';
 import '../../../data/local/db/app_database.dart';
 
 /// This handles trail polylines, POI markers, danger zones, etc.

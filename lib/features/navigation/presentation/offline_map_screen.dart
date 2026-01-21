@@ -967,8 +967,12 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
         zoom: 12.0,
       ),
       myLocationEnabled: _isLocationPermissionGranted,
-      myLocationRenderMode: MyLocationRenderMode.compass,
-      myLocationTrackingMode: MyLocationTrackingMode.tracking,
+      myLocationRenderMode: _isLocationPermissionGranted
+          ? MyLocationRenderMode.compass
+          : MyLocationRenderMode.normal,
+      myLocationTrackingMode: _isLocationPermissionGranted
+          ? MyLocationTrackingMode.tracking
+          : MyLocationTrackingMode.none,
       onMapCreated: (controller) {
         _mapController = controller;
         mapLayerService.attach(controller);

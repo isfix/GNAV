@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_theme.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_glass_panel.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_typography.dart';
@@ -9,6 +10,8 @@ import 'package:pandu_navigation/features/navigation/presentation/widgets/atoms/
 import 'package:pandu_navigation/features/navigation/presentation/offline_map_screen.dart';
 import 'package:pandu_navigation/features/navigation/logic/native_bridge.dart';
 import 'package:pandu_navigation/data/local/db/app_database.dart';
+import 'package:go_router/go_router.dart';
+import 'dart:async';
 
 import 'package:permission_handler/permission_handler.dart';
 
@@ -23,7 +26,10 @@ class StitchMapScreen extends ConsumerStatefulWidget {
 class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
   int _elapsedSeconds = 0;
   bool _isTracking = true;
-  int _currentPage = 0; // For bottom sheet page indicator
+
+  // Real compass data
+  double _compassHeading = 0.0;
+  StreamSubscription<CompassEvent>? _compassSubscription;
 
   @override
   void initState() {
@@ -31,8 +37,24 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkPermissionsAndStartService();
     });
-    // Start timer for tracking
     _startTimer();
+    _initCompass();
+  }
+
+  void _initCompass() {
+    _compassSubscription = FlutterCompass.events?.listen((event) {
+      if (mounted && event.heading != null) {
+        setState(() {
+          _compassHeading = event.heading!;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _compassSubscription?.cancel();
+    super.dispose();
   }
 
   void _startTimer() {
@@ -88,10 +110,10 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
   Widget build(BuildContext context) {
     final navState = ref.watch(nativeNavigationProvider).valueOrNull ?? {};
 
-    // Extract navigation data from native bridge
-    final double altitude = navState['altitude'] ?? 2450.0;
-    final double accuracy = navState['accuracy'] ?? 3.0;
-    final double bearing = navState['bearing'] ?? 285.0;
+    // Extract REAL navigation data from native bridge (show '--' if unavailable)
+    final double? altitude = (navState['altitude'] as num?)?.toDouble();
+    final double? accuracy = (navState['accuracy'] as num?)?.toDouble();
+    final double bearing = _compassHeading; // Use real compass
 
     final String statusRaw = navState['status'] ?? 'SAFE';
     final bool isDanger = statusRaw == 'DANGER';
@@ -99,9 +121,9 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
     final double deviationDist =
         (navState['distance'] as num?)?.toDouble() ?? 0.0;
 
-    // Simulated progress
-    final double completedKm = 2.4;
-    final double totalKm = 4.2;
+    // Trail info
+    final String trailName = widget.trail?.name ?? 'Unknown Trail';
+    final String mountainId = widget.trail?.mountainId ?? 'unknown';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -110,12 +132,12 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
         isActive: isDanger,
         child: Stack(
           children: [
-            // 1. Map Layer
+            // 1. Map Layer (Full Screen)
             Positioned.fill(
               child: _buildMapLayer(),
             ),
 
-            // 2. Top Bar (Gradient + Header + Search)
+            // 2. Header Bar (Brand + Back Button)
             Positioned(
               top: 0,
               left: 0,
@@ -131,79 +153,48 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                 ),
                 child: SafeArea(
                   bottom: false,
-                  child: Column(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Brand + Actions
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.explore,
-                                  color: StitchTheme.primary, size: 28),
-                              const SizedBox(width: 8),
-                              Text.rich(
-                                const TextSpan(
-                                  children: [
-                                    TextSpan(text: 'PANDU '),
-                                    TextSpan(
-                                      text: 'NAV',
-                                      style: TextStyle(
-                                        color: StitchTheme.primary,
-                                        fontWeight: FontWeight.w300,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                style: StitchTypography.displaySmall
-                                    .copyWith(fontSize: 18),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              _buildTopBtn(Icons.layers),
-                              const SizedBox(width: 8),
-                              _buildTopBtn(Icons.settings),
-                            ],
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      // Search Bar
-                      StitchGlassPanel(
-                        padding: EdgeInsets.zero,
-                        borderRadius: BorderRadius.circular(12),
-                        enableTapAnimation: false,
-                        child: const SizedBox(
-                          height: 44,
-                          child: Row(
-                            children: [
-                              SizedBox(width: 14),
-                              Icon(Icons.search, color: StitchTheme.primary),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Search Mount Merbabu peaks...',
-                                  style: TextStyle(
-                                      color: StitchTheme.textDim, fontSize: 14),
-                                ),
-                              ),
-                              Icon(Icons.mic, color: StitchTheme.textDim),
-                              SizedBox(width: 12),
-                            ],
-                          ),
+                      // Back button
+                      GestureDetector(
+                        onTap: () => context.pop(),
+                        child: StitchGlassPanel(
+                          padding: const EdgeInsets.all(10),
+                          borderRadius: BorderRadius.circular(10),
+                          child: const Icon(Icons.arrow_back,
+                              color: Colors.white, size: 20),
                         ),
                       ),
+                      // Trail info
+                      Column(
+                        children: [
+                          Text(
+                            trailName.toUpperCase(),
+                            style: StitchTypography.labelMicro.copyWith(
+                              letterSpacing: 2,
+                              color: StitchTheme.primary,
+                            ),
+                          ),
+                          Text(
+                            mountainId.toUpperCase(),
+                            style: StitchTypography.labelMicro.copyWith(
+                              color: StitchTheme.textDim,
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Settings
+                      _buildTopBtn(Icons.settings),
                     ],
                   ),
                 ),
               ),
             ),
 
-            // 3. HUD Panel (Altitude, GPS, Compass)
+            // 3. HUD Panel (Altitude, GPS, Compass) - Shows real data or '--'
             Positioned(
-              top: 140,
+              top: 120,
               left: 16,
               right: 16,
               child: StitchGlassPanel(
@@ -214,16 +205,16 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                   children: [
                     _buildHudItem(
                       'ALTITUDE',
-                      '${altitude.toInt()}',
+                      altitude != null ? '${altitude.toInt()}' : '--',
                       unit: 'm',
                     ),
                     Container(
                         width: 1, height: 40, color: StitchTheme.borderSubtle),
                     _buildHudItem(
-                      isWarning || isDanger ? 'DIST. DEVIATION' : 'GPS ACC.',
+                      isWarning || isDanger ? 'DEVIATION' : 'GPS ACC.',
                       isWarning || isDanger
                           ? '${deviationDist.toInt()}'
-                          : '${accuracy.toInt()}',
+                          : (accuracy != null ? '${accuracy.toInt()}' : '--'),
                       unit: 'm',
                       isHighlight: true,
                       status: isWarning || isDanger ? statusRaw : null,
@@ -231,7 +222,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                     Container(
                         width: 1, height: 40, color: StitchTheme.borderSubtle),
                     _buildHudItem(
-                      'COMPASS',
+                      'HEADING',
                       '${bearing.toInt()}°',
                       unit: _getBearingDirection(bearing),
                     ),
@@ -243,7 +234,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
             // 4. Off-trail alert (when in danger)
             if (isDanger)
               Positioned(
-                top: 220,
+                top: 200,
                 left: 0,
                 right: 0,
                 child: StitchOffTrailAlert(
@@ -251,68 +242,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                 ),
               ),
 
-            // 5. Peak Marker (center)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Pulse effect
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: StitchTheme.primary.withOpacity(0.2),
-                        ),
-                      ),
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: StitchTheme.primary,
-                          boxShadow: StitchTheme.neonGlow,
-                        ),
-                        child: const Icon(
-                          Icons.flag,
-                          color: Colors.black,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  StitchGlassPanel(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    borderRadius: BorderRadius.circular(8),
-                    borderColor: StitchTheme.primary.withOpacity(0.3),
-                    child: Column(
-                      children: [
-                        Text(
-                          'THE PEAK',
-                          style: StitchTypography.labelMicro.copyWith(
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        Text(
-                          '3,142m',
-                          style: StitchTypography.hudValue.copyWith(
-                            fontSize: 14,
-                            color: StitchTheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // 6. Right Side Controls
+            // 5. Right Side Controls (Zoom, Location, 3D)
             Positioned(
               bottom: 320,
               right: 16,
@@ -323,34 +253,30 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                     borderRadius: BorderRadius.circular(12),
                     child: Column(
                       children: [
-                        _buildMapControlBtn(Icons.add, () {}),
+                        _buildMapControlBtn(Icons.add, _onZoomIn),
                         Container(
                             height: 1,
                             width: 36,
                             color: StitchTheme.borderSubtle),
-                        _buildMapControlBtn(Icons.remove, () {}),
+                        _buildMapControlBtn(Icons.remove, _onZoomOut),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  StitchGlassPanel(
-                    padding: const EdgeInsets.all(12),
-                    borderRadius: BorderRadius.circular(12),
-                    child:
-                        const Icon(Icons.near_me, color: StitchTheme.primary),
-                  ),
-                  const SizedBox(height: 12),
-                  StitchGlassPanel(
-                    padding: const EdgeInsets.all(12),
-                    borderRadius: BorderRadius.circular(12),
-                    child:
-                        const Icon(Icons.threed_rotation, color: Colors.white),
+                  GestureDetector(
+                    onTap: _onCenterLocation,
+                    child: StitchGlassPanel(
+                      padding: const EdgeInsets.all(12),
+                      borderRadius: BorderRadius.circular(12),
+                      child: const Icon(Icons.my_location,
+                          color: StitchTheme.primary),
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // 7. Bottom Sheet
+            // 6. Bottom Sheet
             Positioned(
               bottom: 0,
               left: 0,
@@ -358,16 +284,31 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
               child: _buildBottomSheet(
                 bearing: bearing,
                 accuracy: accuracy,
-                completedKm: completedKm,
-                totalKm: totalKm,
                 isDanger: isDanger,
                 deviationDist: deviationDist,
+                trailName: trailName,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // --- Map Control Callbacks ---
+  void _onZoomIn() {
+    // TODO: Implement zoom in via MapController reference
+    debugPrint('[StitchMapScreen] Zoom In tapped');
+  }
+
+  void _onZoomOut() {
+    // TODO: Implement zoom out via MapController reference
+    debugPrint('[StitchMapScreen] Zoom Out tapped');
+  }
+
+  void _onCenterLocation() {
+    // TODO: Implement center on user location
+    debugPrint('[StitchMapScreen] Center Location tapped');
   }
 
   Widget _buildTopBtn(IconData icon) {
@@ -477,11 +418,10 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
 
   Widget _buildBottomSheet({
     required double bearing,
-    required double accuracy,
-    required double completedKm,
-    required double totalKm,
+    required double? accuracy,
     required bool isDanger,
     required double deviationDist,
+    required String trailName,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -509,37 +449,12 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
 
           // Content based on state
           if (isDanger)
-            _buildDangerSheetContent(deviationDist)
+            _buildDangerSheetContent(deviationDist, trailName)
           else
-            _buildNormalSheetContent(bearing, accuracy, completedKm, totalKm),
+            _buildNormalSheetContent(bearing, accuracy),
 
-          // Page indicators
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, top: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(4, (i) {
-                final isActive = i == _currentPage;
-                return Container(
-                  width: isActive ? 24 : 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    color: isActive ? Colors.white : StitchTheme.textSubtle,
-                    borderRadius: BorderRadius.circular(4),
-                    boxShadow: isActive
-                        ? [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.6),
-                              blurRadius: 8,
-                            )
-                          ]
-                        : null,
-                  ),
-                );
-              }),
-            ),
-          ),
+          // Safe padding for home indicator
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -547,9 +462,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
 
   Widget _buildNormalSheetContent(
     double bearing,
-    double accuracy,
-    double completedKm,
-    double totalKm,
+    double? accuracy,
   ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
@@ -561,7 +474,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
             children: [
               // Bearing display
               StitchBearingDisplay(bearing: bearing),
-              // Compass
+              // Compass (uses real heading from state)
               StitchCompass(bearing: bearing, size: 140),
               // GPS accuracy
               Column(
@@ -581,7 +494,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        '${accuracy.toInt()}',
+                        accuracy != null ? '${accuracy.toInt()}' : '--',
                         style: StitchTypography.monoLarge,
                       ),
                       Text(
@@ -595,9 +508,9 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                     ],
                   ),
                   Text(
-                    'EXCELLENT',
+                    _getAccuracyLabel(accuracy),
                     style: StitchTypography.labelMicro.copyWith(
-                      color: StitchTheme.primary.withOpacity(0.8),
+                      color: _getAccuracyColor(accuracy),
                       letterSpacing: 2,
                     ),
                   ),
@@ -618,7 +531,28 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
     );
   }
 
-  Widget _buildDangerSheetContent(double deviationDist) {
+  String _getAccuracyLabel(double? accuracy) {
+    if (accuracy == null) return 'NO SIGNAL';
+    if (accuracy <= 5) return 'EXCELLENT';
+    if (accuracy <= 10) return 'GOOD';
+    if (accuracy <= 20) return 'FAIR';
+    return 'POOR';
+  }
+
+  Color _getAccuracyColor(double? accuracy) {
+    if (accuracy == null) return StitchTheme.danger;
+    if (accuracy <= 5) return StitchTheme.primary;
+    if (accuracy <= 10) return StitchTheme.primary.withOpacity(0.8);
+    if (accuracy <= 20) return StitchTheme.warning;
+    return StitchTheme.danger;
+  }
+
+  Widget _buildDangerSheetContent(double deviationDist, String trailName) {
+    // Format elapsed time
+    final hours = _elapsedSeconds ~/ 3600;
+    final minutes = (_elapsedSeconds % 3600) ~/ 60;
+    final timeStr = '${hours}h ${minutes}m';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
       child: Column(
@@ -631,7 +565,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Merbabu Selo Trail',
+                    trailName,
                     style: StitchTypography.displaySmall,
                   ),
                   const SizedBox(height: 4),
@@ -647,7 +581,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'ACTIVE NAVIGATION',
+                        'OFF TRAIL - ${deviationDist.toInt()}m',
                         style: StitchTypography.labelMicro.copyWith(
                           color: StitchTheme.danger,
                         ),
@@ -660,11 +594,11 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '2h 15m',
+                    timeStr,
                     style: StitchTypography.hudValue.copyWith(fontSize: 16),
                   ),
                   Text(
-                    'RECALCULATING...',
+                    'ELAPSED',
                     style: StitchTypography.labelMicro,
                   ),
                 ],
@@ -675,7 +609,7 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
           // Backtrack button
           StitchBacktrackButton(
             onPressed: () {
-              // Activate backtrack
+              debugPrint('[StitchMapScreen] Backtrack button pressed');
             },
           ),
         ],
