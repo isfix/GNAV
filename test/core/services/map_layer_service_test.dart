@@ -53,7 +53,7 @@ void main() {
     );
   });
 
-  test('addPOIMarkers loads icons only once', () async {
+  test('addPOIMarkers loads all icons concurrently and only once', () async {
     service.attach(mockController);
 
     // Create a dummy POI
@@ -68,18 +68,38 @@ void main() {
       metadataJson: null,
     );
 
-    // First call
+    // --- First call ---
     await service.addPOIMarkers([poi]);
 
-    // Verify icons loaded
-    expect(mockController.addImageCalls['icon_camp'], 1, reason: 'icon_camp should be loaded once');
-    expect(mockController.addImageCalls['icon_water'], 1, reason: 'icon_water should be loaded once');
+    // Verify ALL icons were loaded exactly once
+    final expectedIcons = [
+      'icon_basecamp',
+      'icon_water',
+      'icon_shelter',
+      'icon_dangerZone',
+      'icon_summit',
+      'icon_viewpoint',
+      'icon_campsite',
+      'icon_junction',
+      'icon_default',
+    ];
 
-    // Second call
+    for (final icon in expectedIcons) {
+      expect(mockController.addImageCalls[icon], 1,
+          reason: '$icon should be loaded once on the first call.');
+    }
+    expect(mockController.addImageCalls.length, expectedIcons.length,
+        reason: 'Only the expected icons should be loaded.');
+
+    // --- Second call ---
     await service.addPOIMarkers([poi]);
 
-    // Verify icons NOT loaded again
-    // Expected behavior (fix): it will be 1.
-    expect(mockController.addImageCalls['icon_camp'], 1, reason: 'icon_camp should NOT be reloaded');
+    // Verify icons were NOT loaded again
+    for (final icon in expectedIcons) {
+      expect(mockController.addImageCalls[icon], 1,
+          reason: '$icon should NOT be reloaded on the second call.');
+    }
+    expect(mockController.addImageCalls.length, expectedIcons.length,
+        reason: 'No new icons should have been loaded on the second call.');
   });
 }
