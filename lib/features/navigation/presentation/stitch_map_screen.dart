@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_theme.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_glass_panel.dart';
 import 'package:pandu_navigation/features/navigation/presentation/widgets/stitch/stitch_typography.dart';
@@ -26,6 +27,8 @@ class StitchMapScreen extends ConsumerStatefulWidget {
 class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
   int _elapsedSeconds = 0;
   bool _isTracking = true;
+
+  MapLibreMapController? _mapController;
 
   // Real compass data
   double _compassHeading = 0.0;
@@ -297,18 +300,39 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
 
   // --- Map Control Callbacks ---
   void _onZoomIn() {
-    // TODO: Implement zoom in via MapController reference
-    debugPrint('[StitchMapScreen] Zoom In tapped');
+    _mapController?.animateCamera(
+      CameraUpdate.zoomTo((_mapController?.cameraPosition?.zoom ?? 12) + 1),
+    );
   }
 
   void _onZoomOut() {
-    // TODO: Implement zoom out via MapController reference
-    debugPrint('[StitchMapScreen] Zoom Out tapped');
+    _mapController?.animateCamera(
+      CameraUpdate.zoomTo((_mapController?.cameraPosition?.zoom ?? 12) - 1),
+    );
   }
 
   void _onCenterLocation() {
-    // TODO: Implement center on user location
-    debugPrint('[StitchMapScreen] Center Location tapped');
+    final navState = ref.read(nativeNavigationProvider).valueOrNull;
+
+    // Try to get location from navState (Real GPS)
+    final double? lat = (navState?['lat'] as num?)?.toDouble();
+    final double? lng = (navState?['lng'] as num?)?.toDouble();
+
+    if (lat != null && lng != null && _mapController != null) {
+      _mapController!.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(lat, lng),
+            zoom: 17.0, // Good zoom for hiking
+            bearing: _compassHeading, // Orient with compass
+            tilt: 0,
+          ),
+        ),
+      );
+    } else {
+      debugPrint(
+          '[StitchMapScreen] Cannot center: Location ($lat, $lng) or Controller unavailable');
+    }
   }
 
   Widget _buildTopBtn(IconData icon) {
@@ -622,6 +646,9 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
       isHeadless: true,
       mountainId: widget.trail?.mountainId ?? 'merbabu',
       trailId: widget.trail?.id,
+      onMapCreated: (controller) {
+        _mapController = controller;
+      },
     );
   }
 }
