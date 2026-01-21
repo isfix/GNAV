@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../navigation/logic/navigation_providers.dart';
 import '../../../data/local/db/app_database.dart';
+import '../../navigation/presentation/widgets/stitch/stitch_theme.dart';
 import 'widgets/mountain_card.dart';
 
 /// Home Screen - Shows list of available mountains
@@ -15,7 +16,7 @@ class HomeScreen extends ConsumerWidget {
     final mountainsAsync = ref.watch(allMountainsProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0a0a0a),
+      backgroundColor: StitchTheme.backgroundDark,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -33,20 +34,15 @@ class HomeScreen extends ConsumerWidget {
                         height: 8,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: const Color(0xFF0df259),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF0df259).withOpacity(0.5),
-                              blurRadius: 8,
-                            ),
-                          ],
+                          color: StitchTheme.primary,
+                          boxShadow: StitchTheme.neonGlow,
                         ),
                       ),
                       const SizedBox(width: 8),
                       const Text(
                         'PANDU',
                         style: TextStyle(
-                          color: Color(0xFF0df259),
+                          color: StitchTheme.primary,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 4,
@@ -58,7 +54,7 @@ class HomeScreen extends ConsumerWidget {
                   const Text(
                     'Where will you\nclimb today?',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: StitchTheme.textPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       height: 1.2,
@@ -75,12 +71,13 @@ class HomeScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
-                  const Icon(Icons.terrain, color: Colors.white24, size: 16),
+                  const Icon(Icons.terrain,
+                      color: StitchTheme.textSubtle, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     'AVAILABLE MOUNTAINS',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                      color: StitchTheme.textMuted,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2,
@@ -96,11 +93,11 @@ class HomeScreen extends ConsumerWidget {
             Expanded(
               child: mountainsAsync.when(
                 loading: () => const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF0df259)),
+                  child: CircularProgressIndicator(color: StitchTheme.primary),
                 ),
                 error: (e, _) => Center(
                   child: Text('Error: $e',
-                      style: const TextStyle(color: Colors.red)),
+                      style: const TextStyle(color: StitchTheme.danger)),
                 ),
                 data: (mountains) {
                   if (mountains.isEmpty) {
@@ -134,18 +131,16 @@ class HomeScreen extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.landscape_outlined,
-              size: 64, color: Colors.white.withOpacity(0.2)),
+              size: 64, color: StitchTheme.textSubtle),
           const SizedBox(height: 16),
           Text(
             'No mountains available',
-            style:
-                TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 16),
+            style: TextStyle(color: StitchTheme.textMuted, fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
             'Check your data connection',
-            style:
-                TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 12),
+            style: TextStyle(color: StitchTheme.textSubtle, fontSize: 12),
           ),
         ],
       ),

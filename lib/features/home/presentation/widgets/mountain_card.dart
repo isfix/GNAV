@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../data/local/db/app_database.dart';
+import '../../../navigation/presentation/widgets/stitch/stitch_theme.dart';
 
 /// Premium mountain card with glassmorphism effect
 class MountainCard extends StatelessWidget {
@@ -29,15 +30,9 @@ class MountainCard extends StatelessWidget {
             ],
           ),
           border: Border.all(
-            color: Colors.white.withOpacity(0.08),
+            color: StitchTheme.borderSubtle,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: StitchTheme.cardShadow,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -54,7 +49,7 @@ class MountainCard extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFF0df259).withOpacity(0.15),
+                        StitchTheme.primary.withOpacity(0.15),
                         Colors.transparent,
                       ],
                     ),
@@ -73,14 +68,14 @@ class MountainCard extends StatelessWidget {
                       height: 56,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFF0df259).withOpacity(0.15),
+                        color: StitchTheme.primary.withOpacity(0.15),
                         border: Border.all(
-                          color: const Color(0xFF0df259).withOpacity(0.3),
+                          color: StitchTheme.borderPrimary,
                         ),
                       ),
                       child: const Icon(
                         Icons.terrain,
-                        color: Color(0xFF0df259),
+                        color: StitchTheme.primary,
                         size: 28,
                       ),
                     ),
@@ -96,7 +91,7 @@ class MountainCard extends StatelessWidget {
                           Text(
                             mountain.name,
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: StitchTheme.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -107,7 +102,7 @@ class MountainCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: StitchTheme.textMuted,
                               fontSize: 13,
                             ),
                           ),
@@ -117,13 +112,13 @@ class MountainCard extends StatelessWidget {
                               _buildTag(
                                 mountain.isDownloaded ? 'OFFLINE' : 'ONLINE',
                                 mountain.isDownloaded
-                                    ? const Color(0xFF0df259)
-                                    : Colors.orange,
+                                    ? StitchTheme.primary
+                                    : StitchTheme.warning,
                               ),
                               const SizedBox(width: 8),
                               _buildTag(
                                 mountain.id.toUpperCase(),
-                                Colors.white,
+                                StitchTheme.textPrimary,
                               ),
                             ],
                           ),
@@ -134,7 +129,7 @@ class MountainCard extends StatelessWidget {
                     // Arrow
                     Icon(
                       Icons.chevron_right,
-                      color: Colors.white.withOpacity(0.3),
+                      color: StitchTheme.borderPrimary,
                       size: 28,
                     ),
                   ],

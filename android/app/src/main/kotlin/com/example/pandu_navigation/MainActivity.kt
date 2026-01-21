@@ -100,11 +100,21 @@ class MainActivity: FlutterActivity() {
             val lat = intent.getDoubleExtra("lat", 0.0)
             val lng = intent.getDoubleExtra("lng", 0.0)
             val status = intent.getStringExtra("status") ?: "SAFE"
+            val altitude = intent.getDoubleExtra("altitude", 0.0)
+            val accuracy = intent.getDoubleExtra("accuracy", 0.0)
+            val bearing = intent.getDoubleExtra("bearing", 0.0)
+            val speed = intent.getDoubleExtra("speed", 0.0)
+            val distance = intent.getDoubleExtra("distance", 0.0)
             
             val payload = mapOf(
                 "lat" to lat,
                 "lng" to lng,
-                "status" to status
+                "status" to status,
+                "altitude" to altitude,
+                "accuracy" to accuracy,
+                "bearing" to bearing,
+                "speed" to speed,
+                "distance" to distance
             )
             eventSink?.success(payload)
         }

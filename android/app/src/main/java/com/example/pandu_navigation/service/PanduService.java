@@ -134,6 +134,11 @@ public class PanduService extends Service {
             intent.putExtra("lat", kLat);
             intent.putExtra("lng", kLng);
             intent.putExtra("status", status.name());
+            intent.putExtra("altitude", location.getAltitude());
+            intent.putExtra("accuracy", location.getAccuracy());
+            intent.putExtra("bearing", location.getBearing());
+            intent.putExtra("speed", location.getSpeed());
+            intent.putExtra("distance", deviationEngine.getLastDeviationDistance()); // Add distance to trail
             LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
         });
     }

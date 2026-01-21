@@ -30,11 +30,49 @@ class OfflineMapStyleHelper {
   }
 
   /// Returns the raw style JSON for online development mode with clustering support.
-  /// This can be used when MBTiles are not available.
-  static Future<String> getStyleTemplate() async {
+  /// [layer] - 'osm', 'cyclosm', 'opentopo', or 'vector'.
+  static Future<String> getStyleTemplate({String layer = 'osm'}) async {
     final styleString =
         await rootBundle.loadString('assets/map_styles/mapstyle.json');
     final Map<String, dynamic> style = json.decode(styleString);
+
+    // Dynamic Layer Switching
+    if (layer != 'vector') {
+      // Switch to Raster Source
+      String tileUrl = "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png";
+      if (layer == 'cyclosm') {
+        tileUrl =
+            "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png";
+      } else if (layer == 'opentopo') {
+        tileUrl = "https://a.tile.opentopomap.org/{z}/{x}/{y}.png";
+      }
+
+      // Replace 'openmaptiles' source with raster
+      if (style.containsKey('sources')) {
+        style['sources']['openmaptiles'] = {
+          "type": "raster",
+          "tiles": [tileUrl],
+          "tileSize": 256
+        };
+      }
+
+      // Update layers to use raster
+      if (style.containsKey('layers')) {
+        final layers = style['layers'] as List;
+        // Remove all vector-based layers that rely on 'openmaptiles' source-layer
+        layers.removeWhere((l) =>
+            l['source'] == 'openmaptiles' && l.containsKey('source-layer'));
+
+        // Add a simple raster layer at the bottom
+        layers.insert(0, {
+          "id": "simple-tiles",
+          "type": "raster",
+          "source": "openmaptiles",
+          "minzoom": 0,
+          "maxzoom": 22
+        });
+      }
+    }
 
     // Inject clustered sources
     _injectClusteredSources(style);

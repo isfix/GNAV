@@ -21,7 +21,7 @@
         android:icon="@mipmap/ic_launcher">
         
         <service
-            android:name=".PanduService"
+            android:name=".service.PanduService"
             android:foregroundServiceType="location"
             android:exported="false" />
             
@@ -46,11 +46,5 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-            
-        <!-- Service Declaration for flutter_background_service -->
-        <service
-            android:name="id.flutter.flutter_background_service.BackgroundService"
-            android:foregroundServiceType="location"
-            />
     </application>
 </manifest>

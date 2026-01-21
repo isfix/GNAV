@@ -5,7 +5,7 @@ import '../../navigation/presentation/widgets/stitch/stitch_theme.dart';
 import '../../navigation/presentation/widgets/stitch/stitch_glass_panel.dart';
 import '../../navigation/presentation/widgets/stitch/stitch_typography.dart';
 import '../../navigation/logic/navigation_providers.dart';
-import '../../../core/services/config_service.dart';
+// import '../../../core/services/config_service.dart';
 
 class StitchHomeScreen extends ConsumerWidget {
   const StitchHomeScreen({super.key});
@@ -105,7 +105,7 @@ class StitchHomeScreen extends ConsumerWidget {
                 Expanded(
                   child: Consumer(
                     builder: (context, ref, child) {
-                      final mountainsAsync = ref.watch(mountainsProvider);
+                      final mountainsAsync = ref.watch(allMountainsProvider);
 
                       return mountainsAsync.when(
                         data: (mountains) {
@@ -121,7 +121,8 @@ class StitchHomeScreen extends ConsumerWidget {
                                 const SizedBox(height: 20),
                             itemBuilder: (context, index) {
                               final mountain = mountains[index];
-                              final bool isActive = mountain.isActive;
+                              // Assume active if available in DB
+                              final bool isActive = true;
 
                               return _buildMountainCard(
                                 context,
@@ -129,9 +130,9 @@ class StitchHomeScreen extends ConsumerWidget {
                                 name: mountain.name,
                                 icon: Icons.terrain,
                                 isActive: isActive,
-                                isOfflineReady:
-                                    true, // Assuming local config means offline ready
-                                badgeText: mountain.difficulty.toUpperCase(),
+                                isOfflineReady: mountain.isDownloaded,
+                                badgeText:
+                                    mountain.isDownloaded ? 'DOWNLOADED' : null,
                                 onTap: () {
                                   ref
                                       .read(activeMountainIdProvider.notifier)

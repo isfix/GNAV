@@ -5,7 +5,7 @@ import '../../../data/local/db/app_database.dart';
 import '../../../data/local/db/converters.dart';
 import 'deviation_engine.dart';
 import 'gps_state_machine.dart';
-import '../../../core/services/track_loader_service.dart';
+// import '../../../core/services/track_loader_service.dart';
 import 'routing/routing_engine.dart';
 
 // Database Provider
@@ -13,9 +13,7 @@ final databaseProvider = Provider<AppDatabase>((ref) {
   return AppDatabase();
 });
 
-final trackLoaderProvider = Provider<TrackLoaderService>((ref) {
-  return TrackLoaderService(ref.watch(databaseProvider));
-});
+// TrackLoaderService removed (Legacy)
 
 // Current User Location Provider (Streamed)
 // In a real app, this streams from Geolocator or Background Service via a Repository.

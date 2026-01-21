@@ -11,9 +11,9 @@ import 'package:geolocator/geolocator.dart';
 
 // INTERNAL IMPORTS
 import '../../../data/local/db/app_database.dart';
-import '../../../../core/services/seeding_service.dart';
+// import '../../../../core/services/seeding_service.dart';
 import '../logic/navigation_providers.dart';
-import '../logic/haptic_compass_controller.dart';
+// import '../logic/haptic_compass_controller.dart';
 import '../logic/deviation_engine.dart';
 import '../logic/backtrack_engine.dart';
 import '../../../core/utils/geo_math.dart';
@@ -22,7 +22,8 @@ import '../../../core/services/map_layer_service.dart';
 
 // WIDGET IMPORTS (REFACTORED)
 import 'widgets/atoms/off_trail_warning_badge.dart';
-import 'widgets/glass_hud.dart'; // NEW
+import 'widgets/glass_container.dart';
+import 'widgets/controls/cockpit_hud.dart';
 import 'widgets/controls/map_style_selector.dart';
 import 'widgets/sheets/navigation_sheet.dart';
 import 'widgets/sheets/search_overlay.dart';
@@ -82,12 +83,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   }
 
   Future<void> _initializeApp() async {
-    // 1. Seed discovery data (mountains registry)
-    await ref.read(seedingServiceProvider).seedDiscoveryData();
-
-    // 2. Seed Merbabu trails and basecamps from GPX files
-    await ref.read(seedingServiceProvider).seedMerbabu();
-
+    // 5. Load Map Style
     // 3. Load selected trail if trailId was passed
     if (widget.trailId != null) {
       await _loadSelectedTrail();
@@ -100,6 +96,11 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
     // 5. Load Map Style
     await _loadMapStyle();
+
+    // Listen for style changes
+    ref.listen(mapStyleProvider, (previous, next) {
+      _loadMapStyle();
+    });
 
     // 6. Then check permissions for location (simplified)
     _checkPermissions();
@@ -123,6 +124,10 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
 
   /// Load map style (Vector MBTiles or Online Fallback)
   Future<void> _loadMapStyle() async {
+    final styleType = ref.read(mapStyleProvider);
+    // TODO: Map existing logic to MapLayerType enum if needed
+    // For now, re-using existing string logic or adapting
+
     final db = ref.read(databaseProvider);
     final mountainId = widget.mountainId ?? 'merbabu';
     final mountain = await db.mountainDao.getRegionById(mountainId);
@@ -136,14 +141,24 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
           await OfflineMapStyleHelper.getOfflineStyle(mountain.localMapPath!);
     } else {
       // Fallback: Use standard style (online tiles or bundled)
-      debugPrint('[Map] Loading default style (online fallback)');
-      style = await OfflineMapStyleHelper.getStyleTemplate();
+      debugPrint(
+          '[Map] Loading default style (online fallback) for type: $styleType');
+      if (styleType == MapLayerType.cyclOsm) {
+        style = await OfflineMapStyleHelper.getStyleTemplate(layer: 'cyclosm');
+      } else if (styleType == MapLayerType.openTopo) {
+        style = await OfflineMapStyleHelper.getStyleTemplate(layer: 'opentopo');
+      } else {
+        style = await OfflineMapStyleHelper.getStyleTemplate(layer: 'osm');
+      }
     }
 
     if (mounted) {
       setState(() {
         _styleString = style;
       });
+      // Force map reload if controller exists
+      // Note: MapLibre doesn't easily swap styles at runtime without reload usually,
+      // but we can try setStyleUrl if available or just setState to rebuild.
     }
   }
 
@@ -330,213 +345,14 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
   }
 
   Future<void> _downloadRegion(String id) async {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Downloading Map Data...")));
-
-    final seeder = ref.read(seedingServiceProvider);
-    try {
-      // Simplified mapping (could be dynamic in seeder)
-      switch (id) {
-        case 'merbabu':
-          await seeder.seedMerbabu();
-          break;
-        case 'rinjani':
-          await seeder.seedRinjani();
-          break;
-        case 'semeru':
-          await seeder.seedSemeru();
-          break;
-        case 'kerinci':
-          await seeder.seedKerinci();
-          break;
-        case 'slamet':
-          await seeder.seedSlamet();
-          break;
-        case 'sumbing':
-          await seeder.seedSumbing();
-          break;
-        case 'arjuno':
-          await seeder.seedArjuno();
-          break;
-        case 'raung':
-          await seeder.seedRaung();
-          break;
-        case 'lawu':
-          await seeder.seedLawu();
-          break;
-        case 'welirang':
-          await seeder.seedWelirang();
-          break;
-        case 'sindoro':
-          await seeder.seedSindoro();
-          break;
-        case 'argopuro':
-          await seeder.seedArgopuro();
-          break;
-        case 'ciremai':
-          await seeder.seedCiremai();
-          break;
-        case 'pangrango':
-          await seeder.seedPangrango();
-          break;
-        case 'gede':
-          await seeder.seedGede();
-          break;
-        case 'butak':
-          await seeder.seedButak();
-          break;
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Download Complete!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        ref.refresh(allMountainsProvider);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Download Failed: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  void _showTrackSelectionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1C1C1E),
-          title: const Text(
-            "Select Route",
-            style: TextStyle(color: Colors.white),
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: FutureBuilder<AssetManifest>(
-              future: AssetManifest.loadFromAssetBundle(rootBundle),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final allAssets = snapshot.data!.listAssets();
-                final tracks = allAssets
-                    .where(
-                      (key) =>
-                          key.startsWith('assets/tracks/') &&
-                          key.endsWith('.gpx'),
-                    )
-                    .toList();
-
-                if (tracks.isEmpty) {
-                  return const Text(
-                    "No tracks found in assets.",
-                    style: TextStyle(color: Colors.white54),
-                  );
-                }
-
-                return ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: tracks.length,
-                  itemBuilder: (context, index) {
-                    final path = tracks[index];
-                    final name = path
-                        .split('/')
-                        .last
-                        .replaceAll('.gpx', '')
-                        .replaceAll('_', ' ')
-                        .toUpperCase();
-
-                    return ListTile(
-                      leading: const Icon(
-                        Icons.terrain,
-                        color: Colors.blueAccent,
-                      ),
-                      title: Text(
-                        name,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      subtitle: Text(
-                        path,
-                        style: const TextStyle(
-                          color: Colors.white24,
-                          fontSize: 10,
-                        ),
-                      ),
-                      onTap: () async {
-                        Navigator.pop(context);
-                        // Infer mountainId from path if possible, or default
-                        // Format: assets/tracks/merbabu/selo.gpx
-                        final parts = path.split('/');
-                        String mountainId = 'unknown';
-                        if (parts.length >= 3) {
-                          mountainId = parts[2]; // e.g. merbabu
-                        }
-
-                        await _loadTrack(
-                          path,
-                          mountainId,
-                          name.replaceAll(' ', '_'),
-                          name,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _loadTrack(
-    String assetPath,
-    String mountainId,
-    String trailId,
-    String name,
-  ) async {
-    try {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Parsing GPX..."),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-
-      await ref
-          .read(trackLoaderProvider)
-          .loadGpxTrack(assetPath, mountainId, trailId, name);
-
-      // Update State
-      ref.read(activeMountainIdProvider.notifier).state = mountainId;
-      ref.refresh(activeTrailsProvider(mountainId));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Route Loaded Successfully!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-        );
-      }
+    // Legacy seeding logic replaced by Native AssetConfigLoader
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Map data is managed by the Native Asset Loader."),
+          backgroundColor: Colors.blueGrey,
+        ),
+      );
     }
   }
 
@@ -843,7 +659,9 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
             right: 16,
             child: CockpitHud(
               altitude: userLocAsync.value?.altitude ?? 0.0,
+              accuracy: userLocAsync.value?.accuracy ?? 0.0,
               bearing: compassHeading,
+              status: ref.watch(safetyStatusProvider),
               speed: userLocAsync.value?.speed,
             ),
           ),
@@ -937,10 +755,6 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
                       }
                     }),
                 const SizedBox(height: 16),
-                GlassFab(
-                  icon: Icons.directions_walk,
-                  onTap: _showTrackSelectionDialog,
-                ),
               ],
             ),
           ),

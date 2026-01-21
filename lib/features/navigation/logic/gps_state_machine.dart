@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
+// import 'package:flutter_background_service/flutter_background_service.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -62,7 +62,7 @@ class GpsStateMachine extends StateNotifier<GpsMode> {
     if (state != newMode) {
       state = newMode;
       // Communicate with Background Service
-      FlutterBackgroundService().invoke("set_gps_mode", {"mode": newMode.name});
+      // FlutterBackgroundService().invoke("set_gps_mode", {"mode": newMode.name});
     }
   }
 

@@ -1,6 +1,5 @@
 import 'package:go_router/go_router.dart';
-import '../features/home/presentation/home_screen.dart';
-import '../features/track_selection/presentation/track_selection_screen.dart';
+// import '../features/home/presentation/home_screen.dart';
 import '../features/track_selection/presentation/stitch_home_screen.dart';
 import '../features/track_selection/presentation/stitch_track_selection_screen.dart';
 import '../features/navigation/presentation/stitch_map_screen.dart';
@@ -28,21 +27,6 @@ final appRouter = GoRouter(
         final extra = state.extra as Map<String, dynamic>?;
         final trail = extra?['trail'] as Trail?;
         return StitchMapScreen(trail: trail);
-      },
-    ),
-
-    // Legacy Home (Backup)
-    GoRoute(
-      path: '/legacy',
-      builder: (context, state) => const HomeScreen(),
-    ),
-
-    // Track Selection Screen (Legacy)
-    GoRoute(
-      path: '/legacy-tracks',
-      builder: (context, state) {
-        final mountain = state.extra as MountainRegion;
-        return TrackSelectionScreen(mountain: mountain);
       },
     ),
   ],

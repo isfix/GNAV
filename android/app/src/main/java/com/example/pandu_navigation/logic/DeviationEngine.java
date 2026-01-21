@@ -18,6 +18,7 @@ public class DeviationEngine {
     }
 
     private final Gson gson = new Gson();
+    private double lastMinDistance = 0.0;
 
     /**
      * Checks if the user is on track.
@@ -28,6 +29,7 @@ public class DeviationEngine {
             // No trails nearby? That's strictly OFF TRAIL if we expect trails.
             // But if we haven't loaded trails yet, we might flag false positives.
             // Assuming nearbyTrails are correctly queryable.
+            lastMinDistance = -1.0; // Unknown distance
             return SafetyStatus.DANGER;
         }
 
@@ -63,6 +65,8 @@ public class DeviationEngine {
             }
         }
 
+        lastMinDistance = minDistance == Double.MAX_VALUE ? 0.0 : minDistance;
+
         if (minDistance <= WARNING_THRESHOLD) {
             return SafetyStatus.SAFE;
         } else if (minDistance <= DANGER_THRESHOLD) {
@@ -70,6 +74,10 @@ public class DeviationEngine {
         } else {
             return SafetyStatus.DANGER;
         }
+    }
+
+    public double getLastDeviationDistance() {
+        return lastMinDistance;
     }
 
     // Helper to parse cached geometry

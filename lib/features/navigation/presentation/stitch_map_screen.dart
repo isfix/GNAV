@@ -11,6 +11,7 @@ import 'package:pandu_navigation/features/navigation/presentation/offline_map_sc
 import 'package:pandu_navigation/features/navigation/logic/native_bridge.dart';
 import 'package:pandu_navigation/data/local/db/app_database.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pandu_navigation/features/navigation/presentation/widgets/controls/map_style_selector.dart';
 import 'dart:async';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -186,8 +187,17 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
                           ),
                         ],
                       ),
-                      // Settings
-                      _buildTopBtn(Icons.settings),
+                      // Settings (Map Layers)
+                      GestureDetector(
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => const MapStyleSelector(),
+                          );
+                        },
+                        child: _buildTopBtn(Icons.layers),
+                      ),
                     ],
                   ),
                 ),
@@ -300,22 +310,22 @@ class _StitchMapScreenState extends ConsumerState<StitchMapScreen> {
   // --- Map Control Callbacks ---
   void _onZoomIn() {
     if (_mapController == null) return;
-    _mapController!
-        .animateCamera(CameraUpdate.zoomTo(_mapController!.cameraPosition!.zoom + 1));
+    _mapController!.animateCamera(
+        CameraUpdate.zoomTo(_mapController!.cameraPosition!.zoom + 1));
   }
 
   void _onZoomOut() {
     if (_mapController == null) return;
-    _mapController!
-        .animateCamera(CameraUpdate.zoomTo(_mapController!.cameraPosition!.zoom - 1));
+    _mapController!.animateCamera(
+        CameraUpdate.zoomTo(_mapController!.cameraPosition!.zoom - 1));
   }
 
   void _onCenterLocation() {
     if (_mapController == null) return;
     // NOTE: This will center on the map's current tracking location,
     // which is managed by the OfflineMapScreen's internal state.
-    _mapController!.moveCamera(CameraUpdate.newLatLngZoom(
-        _mapController!.cameraPosition!.target, 15));
+    _mapController!.moveCamera(
+        CameraUpdate.newLatLngZoom(_mapController!.cameraPosition!.target, 15));
   }
 
   Widget _buildTopBtn(IconData icon) {

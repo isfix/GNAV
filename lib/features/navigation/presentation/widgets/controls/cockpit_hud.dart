@@ -7,6 +7,7 @@ class CockpitHud extends StatelessWidget {
   final double accuracy;
   final double bearing;
   final SafetyStatus status;
+  final double? speed;
 
   const CockpitHud({
     super.key,
@@ -14,6 +15,7 @@ class CockpitHud extends StatelessWidget {
     required this.accuracy,
     required this.bearing,
     required this.status,
+    this.speed,
   });
 
   @override
@@ -28,11 +30,14 @@ class CockpitHud extends StatelessWidget {
               label: 'ALT',
               value: altitude.toStringAsFixed(0),
               unit: 'm'),
+          // Compass / Speed toggle
           GlassPill(
-              icon: Icons.explore,
-              label: 'HEAD',
-              value: bearing.toStringAsFixed(0),
-              unit: '° NW',
+              icon: speed != null && speed! > 1.0 ? Icons.speed : Icons.explore,
+              label: speed != null && speed! > 1.0 ? 'SPEED' : 'HEAD',
+              value: speed != null && speed! > 1.0
+                  ? (speed! * 3.6).toStringAsFixed(1)
+                  : bearing.toStringAsFixed(0),
+              unit: speed != null && speed! > 1.0 ? 'km/h' : '°',
               isCenter: true),
           GlassPill(
               icon: Icons.my_location,

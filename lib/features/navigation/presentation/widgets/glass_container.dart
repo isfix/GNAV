@@ -58,68 +58,7 @@ class GlassContainer extends StatelessWidget {
   }
 }
 
-/// The top cockpit HUD showing telemetry
-class CockpitHud extends StatelessWidget {
-  final double altitude;
-  final double bearing;
-  final double? speed;
-
-  const CockpitHud({
-    super.key,
-    required this.altitude,
-    required this.bearing,
-    this.speed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: GlassContainer(
-          borderRadius: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildStat(Icons.height, "${altitude.toStringAsFixed(0)} m"),
-              const SizedBox(width: 24),
-              _buildStat(
-                  Icons.explore_outlined, "${bearing.toStringAsFixed(0)}°"),
-              if (speed != null) ...[
-                const SizedBox(width: 24),
-                _buildStat(
-                    Icons.speed, "${(speed! * 3.6).toStringAsFixed(1)} km/h"),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStat(IconData icon, String value) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon,
-            size: 16,
-            color: const Color(0xFF0df259)), // Keep neon accent for data
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            fontFamily: 'monospace', // Tech feel
-          ),
-        ),
-      ],
-    );
-  }
-}
+// CockpitHud moved to widgets/controls/cockpit_hud.dart to avoid duplication
 
 /// Floating action button in glass style
 class GlassFab extends StatelessWidget {

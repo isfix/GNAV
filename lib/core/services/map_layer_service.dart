@@ -376,8 +376,15 @@ class MapLayerService {
 
     // Define all possible icons.
     final iconNames = [
-      'basecamp', 'water', 'shelter', 'dangerZone', 'summit',
-      'viewpoint', 'campsite', 'junction', 'default',
+      'basecamp',
+      'water',
+      'shelter',
+      'dangerZone',
+      'summit',
+      'viewpoint',
+      'campsite',
+      'junction',
+      'default',
     ];
 
     // 1. Synchronously determine which icons are new.
@@ -451,9 +458,14 @@ class MapLayerService {
         };
       }).toList();
 
-      final geojson = {'type': 'FeatureCollection', 'features': features};
+      final geojson = {
+        'type': 'FeatureCollection',
+        'features': features,
+        'cluster': false
+      };
 
       if (!_poiLayerAdded) {
+        // Explicitly disable clustering to ensure custom icons are always visible
         await _controller!.addGeoJsonSource(poiSourceId, geojson);
 
         // Symbol Layer with Dynamic Icon Logic matching PoiType enum names

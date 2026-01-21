@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/tactical_theme.dart';
 import 'core/router.dart';
-import 'core/services/seeding_service.dart';
+// import 'core/services/seeding_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +25,10 @@ class _PanduAppState extends ConsumerState<PanduApp> {
   @override
   void initState() {
     super.initState();
-    // ROBUST ASSET DISCOVERY: Seed data on app start
-    // This ensures new assets are detected even if we start at HomeScreen
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(seedingServiceProvider).discoverAndSeedAssets();
-    });
+    // ROBUST ASSET DISCOVERY: Handled by Native Layer (AssetConfigLoader.java)
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   ref.read(seedingServiceProvider).discoverAndSeedAssets();
+    // });
   }
 
   @override
