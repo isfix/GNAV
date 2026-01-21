@@ -211,9 +211,7 @@ class SeedingService {
 
       debugPrint('[Seeding] Found ${mapFiles.length} map files');
 
-      for (final assetPath in mapFiles) {
-        await _seedMapAsset(assetPath);
-      }
+      await Future.wait(mapFiles.map((assetPath) => _seedMapAsset(assetPath)));
 
       // 3. Discover GPX (Trails)
       // Expecting structure: assets/gpx/{mountainId}/*.gpx
@@ -223,9 +221,7 @@ class SeedingService {
 
       debugPrint('[Seeding] Found ${gpxFiles.length} GPX files');
 
-      for (final assetPath in gpxFiles) {
-        await _seedGpxAsset(assetPath);
-      }
+      await Future.wait(gpxFiles.map((assetPath) => _seedGpxAsset(assetPath)));
     } catch (e) {
       debugPrint('[Seeding] Discovery failed: $e');
     }
