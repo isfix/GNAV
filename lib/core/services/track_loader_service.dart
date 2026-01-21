@@ -8,21 +8,68 @@ import '../../data/local/db/app_database.dart';
 import '../../data/local/db/converters.dart';
 import '../utils/geo_math.dart';
 
-/// Container for data parsed from a GPX file in an isolate.
-class GpxParsingResult {
-  final Gpx gpx;
-  final Map<int, TrackPointExtensions> extensions;
+/// DTO for fully processed track data from Isolate
+class ProcessedTrackData {
+  final String? name;
+  final List<TrailPoint> points;
+  final double totalDist;
+  final double elevationGain;
+  final int summitIndex;
+  final double minLat;
+  final double maxLat;
+  final double minLng;
+  final double maxLng;
+  final int difficulty;
 
-  GpxParsingResult(this.gpx, this.extensions);
+  ProcessedTrackData({
+    this.name,
+    required this.points,
+    required this.totalDist,
+    required this.elevationGain,
+    required this.summitIndex,
+    required this.minLat,
+    required this.maxLat,
+    required this.minLng,
+    required this.maxLng,
+    required this.difficulty,
+  });
 }
 
-/// Unified parsing function to run in an isolate.
-GpxParsingResult _parseGpxAndExtensionsIsolate(String rawXml) {
-  // 1. Parse core GPX data
-  final gpx = GpxReader().fromString(rawXml);
+/// Container for result from Isolate
+class ProcessedGpxResult {
+  final Gpx gpx;
+  final ProcessedTrackData? trackData;
 
-  // 2. Parse extensions from the same XML document
-  final extensions = <int, TrackPointExtensions>{};
+  ProcessedGpxResult(this.gpx, this.trackData);
+}
+
+/// Parsed extension data from GPX track points (internal use)
+class _TrackPointExtensions {
+  final String? surface;
+  final String? sacScale;
+  final String? highway;
+
+  const _TrackPointExtensions({this.surface, this.sacScale, this.highway});
+}
+
+/// Helper: Calculate overall trail difficulty from collected SAC scales
+int _calculateDifficultyFromScales(List<SacScale> scales) {
+  if (scales.isEmpty) return 2; // Default moderate
+
+  // Use the maximum difficulty encountered (most challenging segment)
+  int maxDifficulty = 1;
+  for (final scale in scales) {
+    final diff = sacScaleToDifficulty(scale);
+    if (diff > maxDifficulty) {
+      maxDifficulty = diff;
+    }
+  }
+  return maxDifficulty;
+}
+
+/// Helper: Parse extensions from XML
+Map<int, _TrackPointExtensions> _parseExtensionsFromXml(String rawXml) {
+  final extensions = <int, _TrackPointExtensions>{};
   try {
     final document = xml.XmlDocument.parse(rawXml);
     final trkpts = document.findAllElements('trkpt');
@@ -47,7 +94,7 @@ GpxParsingResult _parseGpxAndExtensionsIsolate(String rawXml) {
         }
       }
       if (surface != null || sacScale != null || highway != null) {
-        extensions[index] = TrackPointExtensions(
+        extensions[index] = _TrackPointExtensions(
           surface: surface,
           sacScale: sacScale,
           highway: highway,
@@ -58,18 +105,120 @@ GpxParsingResult _parseGpxAndExtensionsIsolate(String rawXml) {
   } catch (e) {
     debugPrint('[TrackLoader] Error parsing extensions in isolate: $e');
   }
-
-  return GpxParsingResult(gpx, extensions);
+  return extensions;
 }
 
-/// Parsed extension data from GPX track points
-class TrackPointExtensions {
-  final String? surface;
-  final String? sacScale;
-  final String? highway;
+/// Unified parsing and processing function to run in an isolate.
+ProcessedGpxResult _parseAndProcessGpxIsolate(String rawXml) {
+  // 1. Parse core GPX data
+  final gpx = GpxReader().fromString(rawXml);
 
-  const TrackPointExtensions({this.surface, this.sacScale, this.highway});
+  // 2. Parse extensions
+  final extensionsMap = _parseExtensionsFromXml(rawXml);
+
+  ProcessedTrackData? trackData;
+
+  // 3. Process Track (if exists)
+  if (gpx.trks.isNotEmpty) {
+    final trk = gpx.trks.first;
+
+    // Collect all points from all segments
+    final allPoints = <Wpt>[];
+    for (final seg in trk.trksegs) {
+      allPoints.addAll(seg.trkpts);
+    }
+
+    if (allPoints.isNotEmpty) {
+      double totalDist = 0;
+      double elevationGain = 0;
+      double maxElevation = -double.infinity;
+      int summitIndex = 0;
+
+      // Spatial bounds
+      double minLat = 90.0;
+      double maxLat = -90.0;
+      double minLng = 180.0;
+      double maxLng = -180.0;
+
+      final sacScales = <SacScale>[];
+      final dbPoints = <TrailPoint>[];
+
+      for (int i = 0; i < allPoints.length; i++) {
+        final p = allPoints[i];
+        final lat = p.lat ?? 0.0;
+        final lon = p.lon ?? 0.0;
+        final ele = p.ele ?? 0.0;
+
+        // Skip invalid points
+        if (lat == 0.0 && lon == 0.0) continue;
+
+        // Get extension data
+        final ext = extensionsMap[i] ?? const _TrackPointExtensions();
+        final sacScale = parseSacScale(ext.sacScale);
+        if (sacScale != null) {
+          sacScales.add(sacScale);
+        }
+
+        dbPoints.add(TrailPoint(
+          lat,
+          lon,
+          ele,
+          surface: ext.surface,
+          sacScale: sacScale,
+          highway: ext.highway,
+        ));
+
+        // Update bounds
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lon < minLng) minLng = lon;
+        if (lon > maxLng) maxLng = lon;
+
+        // Detect summit
+        if (ele > maxElevation) {
+          maxElevation = ele;
+          summitIndex = dbPoints.length - 1;
+        }
+
+        // Calculate stats
+        if (i > 0) {
+          final prev = allPoints[i - 1];
+          // Use GeoMath.distanceMetersRaw directly
+          final d = GeoMath.distanceMetersRaw(
+            prev.lat ?? 0,
+            prev.lon ?? 0,
+            lat,
+            lon,
+          );
+          totalDist += d;
+
+          final dEle = ele - (prev.ele ?? 0);
+          if (dEle > 0) {
+            elevationGain += dEle;
+          }
+        }
+      }
+
+      final difficulty = _calculateDifficultyFromScales(sacScales);
+
+      trackData = ProcessedTrackData(
+        name: trk.name,
+        points: dbPoints,
+        totalDist: totalDist,
+        elevationGain: elevationGain,
+        summitIndex: summitIndex,
+        minLat: minLat,
+        maxLat: maxLat,
+        minLng: minLng,
+        maxLng: maxLng,
+        difficulty: difficulty,
+      );
+    }
+  }
+
+  return ProcessedGpxResult(gpx, trackData);
 }
+
 
 class TrackLoaderService {
   final AppDatabase _db;
@@ -79,13 +228,6 @@ class TrackLoaderService {
       : _bundle = bundle ?? rootBundle;
 
   /// Loads a complete GPX file from assets, processing both Tracks and Waypoints.
-  ///
-  /// - Tracks (`<trk>`) are saved to the Trails table with spatial bounds.
-  /// - Waypoints (`<wpt>`) are saved to PointsOfInterest with Smart Tagging.
-  ///
-  /// [assetPath] - Full asset path (e.g., 'assets/gpx/merbabu/Selo.gpx')
-  /// [mountainId] - ID of the mountain region (e.g., 'merbabu')
-  /// [trailId] - Unique trail ID (e.g., 'merbabu_selo')
   Future<void> loadFullGpxData(
     String assetPath,
     String mountainId,
@@ -101,11 +243,11 @@ class TrackLoaderService {
         return;
       }
 
-      // GpxReader().fromString is a CPU-bound synchronous operation that can freeze the UI.
-      // We run it in a separate isolate to avoid blocking the main thread.
-      final parsingResult =
-          await compute(_parseGpxAndExtensionsIsolate, xmlString);
-      final gpx = parsingResult.gpx;
+      // 2. Parse and Process in Isolate
+      // This offloads XML parsing AND the heavy loop of processing points to a background thread.
+      final result =
+          await compute(_parseAndProcessGpxIsolate, xmlString);
+      final gpx = result.gpx;
 
       // Validation: Check for empty content
       if (gpx.trks.isEmpty && gpx.wpts.isEmpty) {
@@ -114,14 +256,13 @@ class TrackLoaderService {
         return;
       }
 
-      // 2. Process Tracks -> Trails table
-      if (gpx.trks.isNotEmpty) {
-        // We need raw XML to extract extensions (gpx package doesn't expose them)
-        await _processTrackWithExtensions(
-            gpx, parsingResult.extensions, mountainId, trailId);
+      // 3. Save Processed Track to DB
+      if (result.trackData != null) {
+        await _saveProcessedTrack(
+            result.trackData!, mountainId, trailId, trailId);
       }
 
-      // 3. Process Waypoints -> PointsOfInterest table
+      // 4. Process Waypoints -> PointsOfInterest table
       if (gpx.wpts.isNotEmpty) {
         await _processWaypoints(gpx.wpts, mountainId, trailId);
       }
@@ -136,102 +277,15 @@ class TrackLoaderService {
     }
   }
 
-  /// Process GPX tracks with extension data extraction
-  Future<void> _processTrackWithExtensions(
-    Gpx gpx,
-    Map<int, TrackPointExtensions> extensionsMap,
+  /// Saves the processed track data to the Trails table
+  Future<void> _saveProcessedTrack(
+    ProcessedTrackData data,
     String mountainId,
     String trailId,
+    String defaultName,
   ) async {
-    final trk = gpx.trks.first;
-    final trailName = trk.name ?? trailId;
-
-    // Collect all points from all segments
-    final allPoints = <Wpt>[];
-    for (final seg in trk.trksegs) {
-      allPoints.addAll(seg.trkpts);
-    }
-
-    if (allPoints.isEmpty) {
-      debugPrint('[TrackLoader] Warning: Track has no points');
-      return;
-    }
-
-    // Calculate stats and spatial bounds
-    double totalDist = 0;
-    double elevationGain = 0;
-    double maxElevation = -double.infinity;
-    int summitIndex = 0;
-
-    // Spatial bounds for O(1) lookups
-    double minLat = 90.0;
-    double maxLat = -90.0;
-    double minLng = 180.0;
-    double maxLng = -180.0;
-
-    // Track difficulty from SAC scales
-    final sacScales = <SacScale>[];
-
-    final dbPoints = <TrailPoint>[];
-
-    for (int i = 0; i < allPoints.length; i++) {
-      final p = allPoints[i];
-      final lat = p.lat ?? 0.0;
-      final lon = p.lon ?? 0.0;
-      final ele = p.ele ?? 0.0;
-
-      // Skip invalid points
-      if (lat == 0.0 && lon == 0.0) continue;
-
-      // Get extension data for this point (by index)
-      final ext = extensionsMap[i] ?? const TrackPointExtensions();
-      final sacScale = parseSacScale(ext.sacScale);
-      if (sacScale != null) {
-        sacScales.add(sacScale);
-      }
-
-      // Convert to TrailPoint for DB with extended metadata
-      dbPoints.add(TrailPoint(
-        lat,
-        lon,
-        ele,
-        surface: ext.surface,
-        sacScale: sacScale,
-        highway: ext.highway,
-      ));
-
-      // Update spatial bounds
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-      if (lon < minLng) minLng = lon;
-      if (lon > maxLng) maxLng = lon;
-
-      // Detect summit (highest point)
-      if (ele > maxElevation) {
-        maxElevation = ele;
-        summitIndex = dbPoints.length - 1;
-      }
-
-      // Calculate distance and elevation gain using Haversine
-      if (i > 0) {
-        final prev = allPoints[i - 1];
-        final d = GeoMath.distanceMetersRaw(
-          prev.lat ?? 0,
-          prev.lon ?? 0,
-          lat,
-          lon,
-        );
-        totalDist += d;
-
-        final dEle = ele - (prev.ele ?? 0);
-        if (dEle > 0) {
-          elevationGain += dEle;
-        }
-      }
-    }
-
-    // Calculate difficulty from collected SAC scales
-    final difficulty = _calculateOverallDifficulty(sacScales);
+    final trailName = data.name ?? defaultName;
+    final dbPoints = data.points;
 
     // Insert into Trails table
     final trailEntry = TrailsCompanion(
@@ -239,38 +293,23 @@ class TrackLoaderService {
       mountainId: drift.Value(mountainId),
       name: drift.Value(trailName),
       geometryJson: drift.Value(dbPoints),
-      difficulty: drift.Value(difficulty),
-      distance: drift.Value(totalDist),
-      elevationGain: drift.Value(elevationGain),
-      summitIndex: drift.Value(summitIndex),
+      difficulty: drift.Value(data.difficulty),
+      distance: drift.Value(data.totalDist),
+      elevationGain: drift.Value(data.elevationGain),
+      summitIndex: drift.Value(data.summitIndex),
       isOfficial: const drift.Value(true),
       // Spatial bounds for indexed lookups
-      minLat: drift.Value(minLat),
-      maxLat: drift.Value(maxLat),
-      minLng: drift.Value(minLng),
-      maxLng: drift.Value(maxLng),
+      minLat: drift.Value(data.minLat),
+      maxLat: drift.Value(data.maxLat),
+      minLng: drift.Value(data.minLng),
+      maxLng: drift.Value(data.maxLng),
       startLat: drift.Value(dbPoints.isNotEmpty ? dbPoints.first.lat : null),
       startLng: drift.Value(dbPoints.isNotEmpty ? dbPoints.first.lng : null),
     );
 
     await _db.navigationDao.insertTrail(trailEntry);
     debugPrint(
-        '[TrackLoader] Trail saved: $trailName (${dbPoints.length} points, ${(totalDist / 1000).toStringAsFixed(1)}km, difficulty: $difficulty)');
-  }
-
-  /// Calculate overall trail difficulty from collected SAC scales
-  int _calculateOverallDifficulty(List<SacScale> scales) {
-    if (scales.isEmpty) return 2; // Default moderate
-
-    // Use the maximum difficulty encountered (most challenging segment)
-    int maxDifficulty = 1;
-    for (final scale in scales) {
-      final diff = sacScaleToDifficulty(scale);
-      if (diff > maxDifficulty) {
-        maxDifficulty = diff;
-      }
-    }
-    return maxDifficulty;
+        '[TrackLoader] Trail saved: $trailName (${dbPoints.length} points, ${(data.totalDist / 1000).toStringAsFixed(1)}km, difficulty: ${data.difficulty})');
   }
 
   /// Process GPX waypoints into PointsOfInterest table with Smart Tagging
