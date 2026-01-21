@@ -31,13 +31,7 @@ class DeviationEngine {
       // 1. O(1) AABB Check using pre-calculated DB columns
       // Uses minLat/maxLat/minLng/maxLng stored in the Trail entity
       // This avoids expensive JSON parsing for trails the user is nowhere near
-      final bounds = TrailBounds(
-        trail.minLat, // From DB column
-        trail.maxLat, // From DB column
-        trail.minLng, // From DB column
-        trail.maxLng, // From DB column
-      );
-      if (!bounds.contains(userLoc, padding: _boundsPadding)) {
+      if (!trail.bounds.contains(userLoc, padding: _boundsPadding)) {
         continue; // Skip this trail - user is outside bounding box
       }
 
@@ -115,22 +109,9 @@ class TrailBounds {
 }
 
 extension TrailBoundsExt on Trail {
-  /// Simple caching could be added here using Expando if needed,
-  /// but for now we calculate on fly (O(N) single pass is cheap compared to N*GeoDistance).
-  /// To purely optimize, we should store bounds in DB or transient property.
+  /// Uses pre-calculated bounds stored in the DB (minLat, maxLat, minLng, maxLng).
+  /// This is O(1) and avoids parsing geometry JSON or iterating points.
   TrailBounds get bounds {
-    double minLat = 90.0;
-    double maxLat = -90.0;
-    double minLng = 180.0;
-    double maxLng = -180.0;
-
-    final points = geometryJson;
-    for (final pt in points) {
-      if (pt.lat < minLat) minLat = pt.lat;
-      if (pt.lat > maxLat) maxLat = pt.lat;
-      if (pt.lng < minLng) minLng = pt.lng;
-      if (pt.lng > maxLng) maxLng = pt.lng;
-    }
     return TrailBounds(minLat, maxLat, minLng, maxLng);
   }
 }
