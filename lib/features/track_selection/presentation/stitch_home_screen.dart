@@ -121,11 +121,7 @@ class StitchHomeScreen extends ConsumerWidget {
                                 const SizedBox(height: 20),
                             itemBuilder: (context, index) {
                               final mountain = mountains[index];
-                              // Currently we assume all in config are 'active' or we check a flag.
-                              // For now, let's treat them as active if present in JSON.
-                              // Or check difficulty/status if added to JSON.
-                              // mountains.json simplified version only has id/name/paths/difficulty.
-                              final bool isActive = true;
+                              final bool isActive = mountain.isActive;
 
                               return _buildMountainCard(
                                 context,

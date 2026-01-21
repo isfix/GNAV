@@ -5,6 +5,7 @@
             "id": "merbabu",
             "name": "Mt. Merbabu",
             "region": "Central Java",
+            "active": true,
             "difficulty": "Hard",
             "description": "A popular stratovolcano in Central Java with stunning savanna views.",
             "mbtiles_path": "assets/tiles/merbabu.mbtiles",
