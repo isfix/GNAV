@@ -27,6 +27,7 @@ class MountainConfig {
   final String mbtilesPath;
   final String difficulty;
   final String description;
+  final bool isActive;
 
   MountainConfig({
     required this.id,
@@ -37,6 +38,7 @@ class MountainConfig {
     required this.mbtilesPath,
     required this.difficulty,
     required this.description,
+    required this.isActive,
   });
 
   factory MountainConfig.fromJson(Map<String, dynamic> json) {
@@ -53,6 +55,7 @@ class MountainConfig {
       mbtilesPath: json['mbtiles_path'] as String,
       difficulty: json['difficulty'] as String,
       description: json['description'] as String? ?? '',
+      isActive: json['active'] as bool? ?? true,
     );
   }
 }
