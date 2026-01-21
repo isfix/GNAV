@@ -2453,6 +2453,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       'CREATE INDEX breadcrumbs_session_idx ON user_breadcrumbs (session_id, timestamp)');
   late final Index breadcrumbsSyncedIdx = Index('breadcrumbs_synced_idx',
       'CREATE INDEX breadcrumbs_synced_idx ON user_breadcrumbs (is_synced)');
+  late final Index breadcrumbsTimestampIdx = Index('breadcrumbs_timestamp_idx',
+      'CREATE INDEX breadcrumbs_timestamp_idx ON user_breadcrumbs (timestamp)');
   late final MountainDao mountainDao = MountainDao(this as AppDatabase);
   late final NavigationDao navigationDao = NavigationDao(this as AppDatabase);
   late final TrackingDao trackingDao = TrackingDao(this as AppDatabase);
@@ -2469,7 +2471,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         trailsMountainIdx,
         poiMountainIdx,
         breadcrumbsSessionIdx,
-        breadcrumbsSyncedIdx
+        breadcrumbsSyncedIdx,
+        breadcrumbsTimestampIdx
       ];
 }
 
