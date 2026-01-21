@@ -69,8 +69,8 @@ void main() {
       'assets/map_data/test_mountain.mbtiles': [
         {'asset': 'assets/map_data/test_mountain.mbtiles'}
       ],
-      'assets/gpx/merbabu/Selo.gpx': [
-        {'asset': 'assets/gpx/merbabu/Selo.gpx'}
+      'assets/gpx/fake_mount/fake_trail.gpx': [
+        {'asset': 'assets/gpx/fake_mount/fake_trail.gpx'}
       ]
     };
 
@@ -80,19 +80,29 @@ void main() {
 
     // Add fake assets
     testBundle.addStringAsset('assets/map_data/test_mountain.mbtiles', 'dummy mbtiles content');
-    // For GPX, SeedingService calls loadFullGpxData which likely loads the file via rootBundle too.
-    // Wait, SeedingService uses `TrackLoaderService` which defaults to `rootBundle` if not injected?
-    // In `SeedingService.dart`:
-    // _trackLoader = trackLoader ?? TrackLoaderService(db);
-    // TrackLoaderService likely uses rootBundle.
-    // I need to check if TrackLoaderService uses dependency injection for bundle.
-    // But let's assume for now I just want to check MAP seeding which happens in SeedingService directly.
-    // SeedingService._copyAssetToLocal uses `_bundle.load`.
+    testBundle.addStringAsset('assets/gpx/fake_mount/fake_trail.gpx', '''
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="StravaGPX" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+ <trk>
+  <name>Fake Trail</name>
+  <trkseg>
+   <trkpt lat="-7.4526" lon="110.4422">
+    <ele>1800.0</ele>
+   </trkpt>
+  </trkseg>
+ </trk>
+</gpx>
+    ''');
 
     await seedingService.discoverAndSeedAssets();
 
     // Verify DB has the seeded map
     final regions = await db.select(db.mountainRegions).get();
     expect(regions.any((r) => r.id == 'test_mountain'), isTrue, reason: 'Map region should be seeded');
+
+    // Verify DB has the seeded trail
+    final trails = await db.select(db.trails).get();
+    // This expects the trail to be seeded. If TrackLoaderService uses rootBundle, it won't find the fake gpx and this will fail.
+    expect(trails.any((t) => t.id == 'fake_mount_fake_trail'), isTrue, reason: 'GPX trail should be seeded');
   });
 }
