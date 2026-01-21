@@ -135,7 +135,7 @@ class _OfflineMapScreenState extends ConsumerState<OfflineMapScreen> {
     } else {
       // Fallback: Use standard style (online tiles or bundled)
       debugPrint('[Map] Loading default style (online fallback)');
-      style = 'asset://assets/map_styles/mapstyle.json';
+      style = await OfflineMapStyleHelper.getStyleTemplate();
     }
 
     if (mounted) {

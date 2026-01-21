@@ -23,13 +23,23 @@ class OfflineMapStyleHelper {
       style['sources']['openmaptiles']['url'] = 'mbtiles://$mbtilesPath';
     }
 
+    // 3. Inject clustered sources
+    _injectClusteredSources(style);
+
     return json.encode(style);
   }
 
-  /// Returns the raw style JSON for online development mode.
+  /// Returns the raw style JSON for online development mode with clustering support.
   /// This can be used when MBTiles are not available.
   static Future<String> getStyleTemplate() async {
-    return await rootBundle.loadString('assets/map_styles/mapstyle.json');
+    final styleString =
+        await rootBundle.loadString('assets/map_styles/mapstyle.json');
+    final Map<String, dynamic> style = json.decode(styleString);
+
+    // Inject clustered sources
+    _injectClusteredSources(style);
+
+    return json.encode(style);
   }
 
   /// Checks if a style file exists in assets.
@@ -39,6 +49,39 @@ class OfflineMapStyleHelper {
       return true;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Injects pre-defined clustered sources into the style JSON.
+  /// This enables true clustering support (circles with counts) which
+  /// cannot be achieved via addGeoJsonSource at runtime in some versions.
+  static void _injectClusteredSources(Map<String, dynamic> style) {
+    if (!style.containsKey('sources')) {
+      style['sources'] = <String, dynamic>{};
+    }
+
+    final sources = style['sources'] as Map<String, dynamic>;
+
+    // Define clustered sources
+    // These IDs must match MapLayerService constants:
+    // mountainMarkerSourceId = 'source_mountain_markers'
+    // basecampMarkerSourceId = 'source_basecamp_markers'
+
+    const clusteredSourceIds = [
+      'source_mountain_markers',
+      'source_basecamp_markers'
+    ];
+
+    for (final id in clusteredSourceIds) {
+      if (!sources.containsKey(id)) {
+        sources[id] = {
+          'type': 'geojson',
+          'data': {'type': 'FeatureCollection', 'features': []},
+          'cluster': true,
+          'clusterMaxZoom': 14,
+          'clusterRadius': 50
+        };
+      }
     }
   }
 }
